@@ -1,4 +1,4 @@
 fastapi
 uvicorn 
-sqlalchemy 
-pynacl
+python-dotenv
+supabase

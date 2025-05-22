@@ -9,4 +9,3 @@ key.pem
 cert.pem
 *.db
 .env
-node_modules/
