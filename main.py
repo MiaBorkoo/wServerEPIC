@@ -1,14 +1,27 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 from api.auth import router as auth_router
-from database import create_file, create_shared_file, get_user_files
+from database import create_file, create_shared_file, get_user_files, verify_user_auth, update_user_password
+from totp import verify_totp
+import os
+from secrets import token_urlsafe
+from datetime import datetime
 
 # FastAPI app
 app = FastAPI(title="EPIC Server", description="Server for CS4455 Epic Project")
 
 # Mount authentication routes
 app.include_router(auth_router)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # API Endpoints
 
@@ -17,7 +30,7 @@ app.include_router(auth_router)
 async def root():
     return {"message": "EPIC Server is running with Supabase."}
 
-# File Upload: POST /api/files/upload
+# File Upload
 class FileUploadRequest(BaseModel):
     owner_id: int
     name: str
@@ -39,7 +52,7 @@ async def upload_file(request: FileUploadRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail={"status": "error", "message": str(e)})
 
-# Share File: POST /api/files/share
+# Share File
 class FileShareRequest(BaseModel):
     owner_id: int
     recipient_id: int
@@ -61,7 +74,7 @@ async def share_file(request: FileShareRequest):
     except Exception as e:
         raise HTTPException(status_code=400, detail={"status": "error", "message": str(e)})
 
-# List Files: GET /api/files
+# List Files
 @app.get("/api/files")
 async def list_files(user_id: int):
     try:
@@ -70,12 +83,35 @@ async def list_files(user_id: int):
     except Exception as e:
         raise HTTPException(status_code=400, detail={"status": "error", "message": str(e)})
 
+# Change Password
+class ChangePasswordRequest(BaseModel):
+    username: str
+    old_auth_key: str
+    new_auth_key: str
+    new_encrypted_mek: str
+    totp_code: str
+
+@app.post("/api/auth/change_password")
+async def change_password(request: ChangePasswordRequest):
+    if not verify_user_auth(request.username, request.old_auth_key):
+        raise HTTPException(status_code=401, detail={"status": "error", "message": "Invalid old credentials"})
+
+    if not verify_totp(request.username, request.totp_code):
+        raise HTTPException(status_code=401, detail={"status": "error", "message": "Invalid TOTP"})
+
+    # Update password and encrypted_mek
+    try:
+        update_user_password(request.username, request.new_auth_key, request.new_encrypted_mek)
+        return {"status": "ok", "session": token_urlsafe(64)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"status": "error", "message": str(e)})
+
 # Start server with SSL/TLS
 if __name__ == "__main__":
     uvicorn.run(
         app,
         host="0.0.0.0",
-        port=443,
+        port=int(os.getenv("PORT", 8000)),
         ssl_keyfile="key.pem",
         ssl_certfile="cert.pem"
     )
