@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 from api.auth import router as auth_router
-from database import create_file, create_shared_file, get_user_files, verify_user_auth, update_user_password
+from database import create_file, create_shared_file, get_user_files, verify_user_auth, update_user_password, store_user, get_user_salts, get_encrypted_mek
 from totp import verify_totp
 import os
 from secrets import token_urlsafe
@@ -29,6 +29,55 @@ app.add_middleware(
 @app.get("/")
 async def root():
     return {"message": "EPIC Server is running with Supabase."}
+
+  # Registration
+class RegisterRequest(BaseModel):
+    username: str
+    auth_salt: str
+    enc_salt: str
+    auth_key: str
+    encrypted_mek: str
+
+@app.post("/api/auth/register")
+def register_user(data: RegisterRequest):
+    try:
+        store_user(data.username, data.auth_salt, data.enc_salt, data.auth_key, data.encrypted_mek)
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# Get Salts
+@app.get("/api/user/{username}/salts")
+def get_salts(username: str):
+    salts = get_user_salts(username)
+    if not salts:
+        raise HTTPException(status_code=404, detail="User not found")
+    return salts
+
+class LoginRequest(BaseModel):
+    username: str
+    auth_key: str
+
+@app.post("/api/auth/login")
+def login(data: LoginRequest):
+    if not verify_user_auth(data.username, data.auth_key):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    session_token = token_urlsafe(32)
+    # Store temporary 
+    return {"session": session_token, "totp_required": True}
+
+# TOTP (Second Factor)
+class TOTPRequest(BaseModel):
+    username: str
+    totp_code: str
+
+@app.post("/api/auth/totp")
+def verify_totp_and_return_mek(data: TOTPRequest):
+    if not verify_totp(data.username, data.totp_code):
+        raise HTTPException(status_code=401, detail="Invalid TOTP")
+    mek = get_encrypted_mek(data.username)
+    session_token = token_urlsafe(64)
+    return {"session": session_token, "encrypted_mek": mek}
 
 # File Upload
 class FileUploadRequest(BaseModel):
