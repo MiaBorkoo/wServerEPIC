@@ -1,0 +1,13 @@
+{
+  "name": "wserverepic",
+  "version": "1.0.0",
+  "description": "Web Server for EPIC Block 8",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "react-router-dom": "^7.6.0"
+  }
+}
