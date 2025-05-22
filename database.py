@@ -45,7 +45,6 @@ def update_user_password(username: str, new_auth_key: str, new_encrypted_mek: st
     response = supabase.table("Users").update({
         "auth_key": new_auth_key,
         "encrypted_mek": new_encrypted_mek,
-        "password_changed_at": datetime.now().isoformat()
     }).eq("username", username).execute()
     if not response.data:
         raise Exception("Failed to update password")
