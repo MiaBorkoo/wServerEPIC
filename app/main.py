@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from app.core.config import PROJECT_NAME, ALLOW_ORIGINS, PORT, SSL_KEYFILE, SSL_CERTFILE
-from app.api.v1 import auth_router, files_router
+from app.routers import auth_router, files_router
 
 app = FastAPI(title=PROJECT_NAME, description="Server for CS4455 Epic Project")
 
@@ -17,7 +17,6 @@ app.add_middleware(
 )
 
 # Include routers
-# TODO: The API_V1_STR from config should be used as a prefix for these routers
 app.include_router(auth_router.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(files_router.router, prefix="/api/files", tags=["Files"])
 
