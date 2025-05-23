@@ -1,5 +1,11 @@
-from supabase import create_client, Client
 import os
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.backends import default_backend
+from supabase import create_client, Client
 from dotenv import load_dotenv
 from datetime import datetime
 import secrets
@@ -9,6 +15,26 @@ load_dotenv()
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(supabase_url, supabase_key)
+
+# *** Password hashing section start, keep
+
+#RIFC 9106 reccomends 1 iteration, 8 lanes, 4 GiB memory, 128-bit salt
+ph = PasswordHasher(
+    time_cost=1, memory_cost=4097152, parallelism=8, salt_len=16, hash_len=32
+)
+
+# Derive MEK Wrapper using HKDF
+def derive_mek_wrapper(client_key: bytes, salt: bytes) -> bytes:
+    hkdf = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        info=b"MEK Wrapper"
+    )
+    return hkdf.derive(client_key)
+
+
+# *** Section end
 
 # User-related functions
 
