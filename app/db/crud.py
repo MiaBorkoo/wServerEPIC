@@ -1,3 +1,12 @@
+import os
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.backends import default_backend
+from supabase import create_client, Client
+from dotenv import load_dotenv
 from datetime import datetime
 import secrets
 from .session import supabase # Use relative import for the supabase client
@@ -6,6 +15,29 @@ from .session import supabase # Use relative import for the supabase client
 
 def store_user(username: str, auth_salt: str, enc_salt: str, auth_key: str, encrypted_mek: str) -> dict:
     # TODO: Consider returning the created user object or ID
+# *** Password hashing section start, keep
+    return()
+#RIFC 9106 reccomends 1 iteration, 8 lanes, 4 GiB memory, 128-bit salt
+ph = PasswordHasher(
+    time_cost=1, memory_cost=4097152, parallelism=8, salt_len=16, hash_len=32
+)
+
+# Derive MEK Wrapper using HKDF
+def derive_mek_wrapper(client_key: bytes, salt: bytes) -> bytes:
+    hkdf = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        info=b"MEK Wrapper"
+    )
+    return hkdf.derive(client_key)
+
+
+# *** Section end
+
+# User-related functions
+
+def store_user(username: str, auth_salt: str, enc_salt: str, auth_key: str, encrypted_mek: str) -> None:
     response = supabase.table("Users").insert({
         "username": username,
         "auth_salt": auth_salt,
