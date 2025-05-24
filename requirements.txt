@@ -1,5 +1,10 @@
-fastapi
-uvicorn 
+fastapi[standard]
+uvicorn[standard]
 python-dotenv
-supabase
+sqlalchemy
+alembic
+psycopg2-binary
 cryptography
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
