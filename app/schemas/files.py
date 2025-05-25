@@ -14,7 +14,7 @@ class FileShareRequest(BaseModel):
     file_id: UUID
     recipient_username: str = Field(..., max_length=255)
     encrypted_data_key: bytes
-    permission_level: str = Field(..., regex="^(read|write|admin)$")
+    permission_level: str = Field(..., pattern="^(read|write|admin)$")
     expires_at: Optional[datetime] = None
     share_grant_hmac: str = Field(..., max_length=64)
     share_chain_hmac: str = Field(..., max_length=64)

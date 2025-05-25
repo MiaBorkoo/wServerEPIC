@@ -15,12 +15,32 @@ from app.core.security import compute_hmac, verify_hmac, hash_ip_address
 def create_user(
     db: Session, 
     username: str, 
-    public_key: str, 
+    auth_salt: str,
+    enc_salt: str,
+    auth_key: str,
+    encrypted_mek: bytes,
+    totp_secret: str,
+    public_key: str,
     user_data_hmac: str
 ) -> User:
-    """Create a new user with integrity protection"""
+    """Create a new user with integrity protection - UPDATED to match REQ-AUTH-001"""
+    # Convert public_key dict to JSON string for storage
+    if isinstance(public_key, dict):
+        import json
+        public_key = json.dumps(public_key)
+    
+    # Convert encrypted_mek to bytes if it's a string (base64 encoded)
+    if isinstance(encrypted_mek, str):
+        import base64
+        encrypted_mek = base64.b64decode(encrypted_mek)
+    
     user = User(
         username=username,
+        auth_salt=auth_salt,          # ADDED: Authentication salt
+        enc_salt=enc_salt,            # ADDED: Encryption salt  
+        auth_key=auth_key,            # ADDED: Server key hash (Argon2id output)
+        encrypted_mek=encrypted_mek,  # ADDED: Client-encrypted MEK
+        totp_secret=totp_secret,      # ADDED: TOTP secret
         public_key=public_key,
         user_data_hmac=user_data_hmac,
         created_at=func.now()
@@ -42,6 +62,44 @@ def update_user_last_login(db: Session, user_id: UUID) -> bool:
     """Update user's last login timestamp"""
     result = db.query(User).filter(User.user_id == user_id).update({
         "last_login": func.now()
+    })
+    db.commit()
+    return result > 0
+
+def get_user_salts(db: Session, username: str) -> Optional[Dict[str, str]]:
+    """Get user's authentication and encryption salts - ADDED for REQ-AUTH-005"""
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        return None
+    return {
+        "auth_salt": user.auth_salt,
+        "enc_salt": user.enc_salt
+    }
+
+def verify_user_auth(db: Session, username: str, auth_key: str) -> bool:
+    """Verify user's authentication key - ADDED for login flow"""
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        return False
+    return user.auth_key == auth_key
+
+def get_encrypted_mek(db: Session, username: str) -> Optional[bytes]:
+    """Get user's encrypted MEK - ADDED for TOTP flow"""
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        return None
+    return user.encrypted_mek
+
+def update_user_password(db: Session, username: str, new_auth_key: str, new_encrypted_mek: bytes) -> bool:
+    """Update user's password and encrypted MEK - ADDED for password change"""
+    # Convert encrypted_mek to bytes if it's a string (base64 encoded)
+    if isinstance(new_encrypted_mek, str):
+        import base64
+        new_encrypted_mek = base64.b64decode(new_encrypted_mek)
+    
+    result = db.query(User).filter(User.username == username).update({
+        "auth_key": new_auth_key,
+        "encrypted_mek": new_encrypted_mek
     })
     db.commit()
     return result > 0
