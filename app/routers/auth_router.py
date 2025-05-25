@@ -78,6 +78,13 @@ def verify_totp_and_return_mek(data: TOTPRequest, db: Session = Depends(get_db))
     # TODO: Store this new session_token, perhaps replacing the previous one.
     return {"session_token": session_token, "encrypted_mek": encrypted_mek}
 
+@router.post("/logout")
+async def logout():
+    """Logout user by invalidating session token"""
+    # Note: For JWT tokens, logout is primarily handled client-side by discarding the token
+    # TODO: In production, consider implementing a token blacklist for enhanced security
+    return {"status": "success", "message": "Logged out successfully"}
+
 @router.post("/change_password")
 async def change_password(request: ChangePasswordRequest, db: Session = Depends(get_db)):  # ADDED: Database session dependency
     # TODO: Validate session before allowing password change.

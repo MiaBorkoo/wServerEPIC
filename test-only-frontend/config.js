@@ -14,19 +14,19 @@ const CONFIG = {
         LOGIN: '/api/auth/login',
         TOTP: '/api/auth/totp',
         LOGOUT: '/api/auth/logout',
-        CHANGE_PASSWORD: '/api/user/change_password',
+        CHANGE_PASSWORD: '/api/auth/change_password',
         
         // File management endpoints
         FILES_LIST: '/api/files',
         FILE_UPLOAD: '/api/files/upload',
-        FILE_DOWNLOAD: '/api/files/download',
+        FILE_DOWNLOAD: '/api/files/{file_id}/download',
         FILE_DELETE: '/api/files/delete',
-        FILE_METADATA: '/api/files/metadata',
+        FILE_METADATA: '/api/files/{file_id}/metadata',
         
         // Sharing endpoints
         FILE_SHARE: '/api/files/share',
         SHARE_REVOKE: '/api/files/share/{share_id}',
-        FILE_SHARES: '/api/files/shares',
+        FILE_SHARES: '/api/files/{file_id}/shares',
         RECEIVED_SHARES: '/api/files/shares/received',
         
         // Verification endpoints

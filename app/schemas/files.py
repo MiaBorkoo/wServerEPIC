@@ -36,6 +36,17 @@ class FileResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class SharedFileResponse(BaseModel):
+    file_id: UUID
+    filename_encrypted: bytes
+    file_size_encrypted: bytes
+    upload_timestamp: int
+    file_data_hmac: str
+    share_id: UUID
+    
+    class Config:
+        from_attributes = True
+
 class ShareResponse(BaseModel):
     share_id: UUID
     file_id: UUID
@@ -49,7 +60,7 @@ class ShareResponse(BaseModel):
 
 class UserFilesResponse(BaseModel):
     owned_files: List[FileResponse]
-    shared_files: List[FileResponse]
+    shared_files: List[SharedFileResponse]
 
 class AuditLogResponse(BaseModel):
     log_id: UUID

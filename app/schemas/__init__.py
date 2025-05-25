@@ -7,7 +7,11 @@ from .users import (
 )
 from .files import (
     FileUploadRequest,
-    FileShareRequest
+    FileShareRequest,
+    FileResponse,
+    SharedFileResponse,
+    ShareResponse,
+    UserFilesResponse
 )
 
 # TODO: Add more specific response models for clarity and OpenAPI documentation. 

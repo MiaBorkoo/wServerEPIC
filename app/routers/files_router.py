@@ -10,7 +10,7 @@ import base64
 
 from app.schemas.files import (
     FileUploadRequest, FileShareRequest, ShareRevokeRequest, FileDeleteRequest,
-    FileResponse, ShareResponse, UserFilesResponse, 
+    FileResponse, SharedFileResponse, ShareResponse, UserFilesResponse, 
     AuditLogResponse, PaginationParams
 )
 from app.db.database import get_db
@@ -146,9 +146,12 @@ async def download_file(
             log_entry_hmac=log_hmac
         )
         
+        # Extract file path while session is active
+        file_path = file_record.server_storage_path
+        
         # Stream file content
         def file_generator():
-            with open(file_record.server_storage_path, "rb") as f:
+            with open(file_path, "rb") as f:
                 while chunk := f.read(8192):
                     yield chunk
         
@@ -166,7 +169,7 @@ async def download_file(
             detail={"status": "error", "message": f"Download failed: {str(e)}"}
         )
 
-@router.get("/{file_id}/metadata", response_model=FileResponse)
+@router.get("/{file_id}/metadata")
 async def get_file_metadata(
     file_id: UUID,
     current_user: User = Depends(get_current_active_user),
@@ -178,14 +181,28 @@ async def get_file_metadata(
         if not file_record:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
         
-        # Check access
-        has_access = (file_record.owner_id == current_user.user_id or 
-                     crud.get_active_share(db, file_id, current_user.user_id) is not None)
+        # Check if user owns the file
+        is_owner = file_record.owner_id == current_user.user_id
         
-        if not has_access:
+        # Check if user has share access
+        share_record = crud.get_active_share(db, file_id, current_user.user_id)
+        
+        if not is_owner and share_record is None:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
         
-        return FileResponse.model_validate(file_record)
+        # Return different response based on ownership vs shared access
+        if is_owner:
+            return FileResponse.model_validate(file_record)
+        else:
+            # Return SharedFileResponse for shared files (no server_storage_path)
+            return SharedFileResponse(
+                file_id=file_record.file_id,
+                filename_encrypted=file_record.filename_encrypted,
+                file_size_encrypted=file_record.file_size_encrypted,
+                upload_timestamp=file_record.upload_timestamp,
+                file_data_hmac=file_record.file_data_hmac,
+                share_id=share_record.share_id
+            )
         
     except HTTPException:
         raise
@@ -326,11 +343,23 @@ async def list_files(
         shared_files_data = crud.get_user_shared_files(
             db, current_user.user_id, pagination.limit, pagination.offset
         )
-        shared_files = [file for file, share in shared_files_data]
+        
+        # Create SharedFileResponse objects with share_id
+        shared_files = []
+        for file, share in shared_files_data:
+            shared_file = SharedFileResponse(
+                file_id=file.file_id,
+                filename_encrypted=file.filename_encrypted,
+                file_size_encrypted=file.file_size_encrypted,
+                upload_timestamp=file.upload_timestamp,
+                file_data_hmac=file.file_data_hmac,
+                share_id=share.share_id
+            )
+            shared_files.append(shared_file)
         
         return UserFilesResponse(
             owned_files=[FileResponse.model_validate(file) for file in owned_files],
-            shared_files=[FileResponse.model_validate(file) for file in shared_files]
+            shared_files=shared_files
         )
         
     except Exception as e:
@@ -365,7 +394,7 @@ async def list_file_shares(
             detail={"status": "error", "message": f"Failed to list shares: {str(e)}"}
         )
 
-@router.get("/shares/received", response_model=List[FileResponse])
+@router.get("/shares/received", response_model=List[SharedFileResponse])
 async def list_received_shares(
     pagination: PaginationParams = Depends(),
     current_user: User = Depends(get_current_active_user),
@@ -376,8 +405,21 @@ async def list_received_shares(
         shared_files_data = crud.get_user_shared_files(
             db, current_user.user_id, pagination.limit, pagination.offset
         )
-        shared_files = [file for file, share in shared_files_data]
-        return [FileResponse.model_validate(file) for file in shared_files]
+        
+        # Create SharedFileResponse objects with share_id
+        shared_files = []
+        for file, share in shared_files_data:
+            shared_file = SharedFileResponse(
+                file_id=file.file_id,
+                filename_encrypted=file.filename_encrypted,
+                file_size_encrypted=file.file_size_encrypted,
+                upload_timestamp=file.upload_timestamp,
+                file_data_hmac=file.file_data_hmac,
+                share_id=share.share_id
+            )
+            shared_files.append(shared_file)
+        
+        return shared_files
         
     except Exception as e:
         raise HTTPException(

@@ -442,11 +442,40 @@ async function handleFileDownload() {
     }
     
     try {
-        const response = await makeApiCall('POST', CONFIG.ENDPOINTS.FILE_DOWNLOAD, {
-            file_id: fileId
-        });
+        const url = getApiUrl(CONFIG.ENDPOINTS.FILE_DOWNLOAD, { file_id: fileId });
         
-        alert('File download initiated (check API response log for details)');
+        const options = {
+            method: 'GET',
+            headers: {}
+        };
+        
+        if (sessionToken) {
+            options.headers['Authorization'] = `Bearer ${sessionToken}`;
+        }
+        
+        logApiCall('GET', url, null);
+        const response = await fetch(url, options);
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            logApiResponse(response.status, errorData);
+            throw new Error(`HTTP ${response.status}: ${errorData.detail || 'Unknown error'}`);
+        }
+        
+        // Handle binary file download
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = downloadUrl;
+        a.download = fileId;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(downloadUrl);
+        document.body.removeChild(a);
+        
+        logApiResponse(response.status, { message: 'File downloaded successfully' });
+        alert('File download successful!');
         
     } catch (error) {
         alert(`File download failed: ${error.message}`);
@@ -483,7 +512,7 @@ async function handleFileMetadata() {
     }
     
     try {
-        const response = await makeApiCall('POST', CONFIG.ENDPOINTS.FILE_METADATA, {
+        const response = await makeApiCall('GET', CONFIG.ENDPOINTS.FILE_METADATA, null, true, {
             file_id: fileId
         });
         
@@ -546,8 +575,8 @@ async function handleGetFileShares(e) {
     }
     
     try {
-        const response = await makeApiCall('GET', CONFIG.ENDPOINTS.FILE_SHARES + `?file_id=${fileId}`);
-        displaySharesList(response.shares || [], elements.mySharesList);
+        const response = await makeApiCall('GET', CONFIG.ENDPOINTS.FILE_SHARES, null, true, { file_id: fileId });
+        displaySharesList(response || [], elements.mySharesList);
         
     } catch (error) {
         alert(`Failed to get file shares: ${error.message}`);
@@ -557,7 +586,7 @@ async function handleGetFileShares(e) {
 async function refreshReceivedShares() {
     try {
         const response = await makeApiCall('GET', CONFIG.ENDPOINTS.RECEIVED_SHARES);
-        displaySharesList(response.shares || [], elements.receivedSharesList);
+        displaySharesList(response || [], elements.receivedSharesList);
     } catch (error) {
         alert(`Failed to refresh received shares: ${error.message}`);
     }

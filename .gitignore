@@ -10,5 +10,4 @@ cert.pem
 *.db
 .env
 ProjectRequirementsDoc.txt
-alembic/versions/
 files/
