@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        button { margin: 5px; padding: 8px 16px; }
+        #output { background: #f5f5f5; padding: 15px; margin: 10px 0; height: 400px; overflow-y: auto; }
+        input { margin: 5px; padding: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Quick API Test</h1>
+    
+    <div class="test-section">
+        <h3>Server URL:</h3>
+        <input type="text" id="server-url" value="http://localhost:8000" style="width: 300px;">
+    </div>
+
+    <div class="test-section">
+        <h3>Quick Tests:</h3>
+        <button onclick="testRegister()">Test Register</button>
+        <button onclick="testLogin()">Test Login Flow</button>
+        <button onclick="testFileUpload()">Test File Upload</button>
+        <button onclick="clearOutput()">Clear Output</button>
+    </div>
+
+    <div class="test-section">
+        <h3>Manual Test:</h3>
+        <select id="method">
+            <option value="GET">GET</option>
+            <option value="POST">POST</option>
+            <option value="DELETE">DELETE</option>
+        </select>
+        <input type="text" id="endpoint" placeholder="/api/endpoint" style="width: 200px;">
+        <textarea id="payload" placeholder='{"key": "value"}' style="width: 200px; height: 60px;"></textarea>
+        <button onclick="manualTest()">Send Request</button>
+    </div>
+
+    <div id="output"></div>
+
+    <script>
+        function log(message) {
+            const output = document.getElementById('output');
+            output.innerHTML += new Date().toISOString() + ': ' + message + '\n';
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function clearOutput() {
+            document.getElementById('output').innerHTML = '';
+        }
+
+        function getServerUrl() {
+            return document.getElementById('server-url').value;
+        }
+
+        async function apiCall(method, endpoint, data = null) {
+            const url = getServerUrl() + endpoint;
+            const options = {
+                method: method,
+                headers: { 'Content-Type': 'application/json' }
+            };
+            
+            if (data) {
+                options.body = JSON.stringify(data);
+            }
+
+            try {
+                log(`${method} ${url}`);
+                if (data) log(`Request: ${JSON.stringify(data, null, 2)}`);
+                
+                const response = await fetch(url, options);
+                const responseData = await response.json();
+                
+                log(`Response (${response.status}): ${JSON.stringify(responseData, null, 2)}`);
+                return { success: response.ok, data: responseData, status: response.status };
+            } catch (error) {
+                log(`Error: ${error.message}`);
+                return { success: false, error: error.message };
+            }
+        }
+
+        function generateRandomHex(length) {
+            const array = new Uint8Array(length);
+            crypto.getRandomValues(array);
+            return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+        }
+
+        function generateFakeHMAC(userData) {
+            // Fake HMAC computation for testing - NOT cryptographically secure!
+            // In real implementation, would use proper HMAC-SHA256 with secret key
+            const dataString = JSON.stringify(userData);
+            let hash = 0;
+            for (let i = 0; i < dataString.length; i++) {
+                const char = dataString.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            return 'test_hmac_' + Math.abs(hash).toString(16) + '_' + Date.now();
+        }
+
+        async function testRegister() {
+            log('=== Testing Registration ===');
+            
+            // Generate fake crypto data for testing
+            const authSalt = generateRandomHex(32);
+            const encSalt = generateRandomHex(32);
+            const username = 'testuser_' + Date.now();
+            const password = 'TestPassword123!';
+            
+            // Prepare user data for HMAC computation
+            const userData = {
+                username: username,
+                auth_salt: authSalt,
+                enc_salt: encSalt,
+                auth_key: 'fake_auth_key_' + Date.now(),
+                encrypted_mek: 'fake_encrypted_mek_' + Date.now(),
+                totp_secret: 'JBSWY3DPEHPK3PXP',
+                public_key: {
+                    kty: "RSA",
+                    n: "fake_modulus_" + Date.now(),
+                    e: "AQAB"
+                }
+            };
+            
+            // Generate HMAC for user data integrity protection (client-side computation)
+            const userDataHmac = generateFakeHMAC(userData);
+            
+            const result = await apiCall('POST', '/api/auth/register', {
+                ...userData,
+                user_data_hmac: userDataHmac
+            });
+            log('Registration test completed\n');
+        }
+
+        async function testLogin() {
+            log('=== Testing Login Flow ===');
+            const username = 'testuser_' + Date.now();
+            
+            // Register first
+            log('Step 1: Register user');
+            const authSalt = generateRandomHex(32);
+            const encSalt = generateRandomHex(32);
+            
+            // Prepare user data for HMAC computation
+            const userData = {
+                username: username,
+                auth_salt: authSalt,
+                enc_salt: encSalt,
+                auth_key: 'fake_auth_key_' + Date.now(),
+                encrypted_mek: 'fake_encrypted_mek_' + Date.now(),
+                totp_secret: 'JBSWY3DPEHPK3PXP',
+                public_key: {
+                    kty: "RSA",
+                    n: "fake_modulus_" + Date.now(),
+                    e: "AQAB"
+                }
+            };
+            
+            // Generate HMAC for user data integrity protection (client-side computation)
+            const userDataHmac = generateFakeHMAC(userData);
+            
+            await apiCall('POST', '/api/auth/register', {
+                ...userData,
+                user_data_hmac: userDataHmac
+            });
+
+            // Get salts
+            log('Step 2: Get salts');
+            await apiCall('GET', `/api/user/${username}/salts`);
+
+            // Login
+            log('Step 3: Login (first factor)');
+            await apiCall('POST', '/api/auth/login', {
+                username: username,
+                auth_key: 'fake_auth_key_derived_' + Date.now(),
+                nonce: 'test_nonce_' + Date.now()
+            });
+
+            log('Login test completed (would need real TOTP for step 2)\n');
+        }
+
+        async function testFileUpload() {
+            log('=== Testing File Upload ===');
+            
+            // This would need authentication first
+            log('Note: File upload requires authentication');
+            log('Simulating upload request structure...');
+            
+            const fileData = {
+                file_id: 'test_file_' + Date.now(),
+                filename_encrypted: btoa('test.txt'),
+                file_size_encrypted: btoa('1024'),
+                file_data_hmac: 'test_hmac_' + Date.now()
+            };
+            
+            log(`Would upload with data: ${JSON.stringify(fileData, null, 2)}`);
+            log('File upload test completed\n');
+        }
+
+        async function manualTest() {
+            const method = document.getElementById('method').value;
+            const endpoint = document.getElementById('endpoint').value;
+            const payloadText = document.getElementById('payload').value.trim();
+            
+            let payload = null;
+            if (payloadText) {
+                try {
+                    payload = JSON.parse(payloadText);
+                } catch (e) {
+                    log('Error: Invalid JSON payload');
+                    return;
+                }
+            }
+
+            log('=== Manual Test ===');
+            await apiCall(method, endpoint, payload);
+            log('Manual test completed\n');
+        }
+
+        // Initial log
+        log('Quick API Test Tool Ready');
+        log('Make sure your FastAPI server is running first!\n');
+    </script>
+</body>
+</html> 

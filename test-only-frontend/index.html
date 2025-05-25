@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure File Share - Test Frontend</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Secure File Share - Test Frontend</h1>
+            <div id="auth-status" class="auth-status">Not logged in</div>
+        </header>
+
+        <!-- Authentication Section -->
+        <section id="auth-section" class="section">
+            <h2>Authentication</h2>
+            
+            <!-- Registration -->
+            <div class="subsection">
+                <h3>Register</h3>
+                <form id="register-form">
+                    <input type="text" id="reg-username" placeholder="Username" required>
+                    <input type="password" id="reg-password" placeholder="Password" required>
+                    <input type="text" id="reg-totp-secret" placeholder="TOTP Secret (optional)">
+                    <button type="submit">Register</button>
+                </form>
+            </div>
+
+            <!-- Login -->
+            <div class="subsection">
+                <h3>Login</h3>
+                <form id="login-form">
+                    <input type="text" id="login-username" placeholder="Username" required>
+                    <input type="password" id="login-password" placeholder="Password" required>
+                    <button type="submit">Login (Step 1)</button>
+                </form>
+                
+                <form id="totp-form" style="display: none;">
+                    <input type="text" id="totp-code" placeholder="TOTP Code" required>
+                    <button type="submit">Verify TOTP (Step 2)</button>
+                </form>
+            </div>
+
+            <!-- Change Password -->
+            <div class="subsection">
+                <h3>Change Password</h3>
+                <form id="change-password-form">
+                    <input type="password" id="new-password" placeholder="New Password" required>
+                    <input type="text" id="change-totp" placeholder="TOTP Code" required>
+                    <button type="submit">Change Password</button>
+                </form>
+            </div>
+
+            <button id="logout-btn" style="display: none;">Logout</button>
+        </section>
+
+        <!-- File Management Section -->
+        <section id="file-section" class="section" style="display: none;">
+            <h2>File Management</h2>
+            
+            <!-- Upload -->
+            <div class="subsection">
+                <h3>Upload File</h3>
+                <form id="upload-form">
+                    <input type="file" id="file-input" required>
+                    <button type="submit">Upload File</button>
+                </form>
+            </div>
+
+            <!-- File List -->
+            <div class="subsection">
+                <h3>My Files</h3>
+                <button id="refresh-files">Refresh Files</button>
+                <div id="files-list"></div>
+            </div>
+
+            <!-- File Operations -->
+            <div class="subsection">
+                <h3>File Operations</h3>
+                <form id="file-ops-form">
+                    <input type="text" id="file-id-input" placeholder="File ID" required>
+                    <button type="button" id="download-btn">Download</button>
+                    <button type="button" id="delete-btn">Delete</button>
+                    <button type="button" id="metadata-btn">Get Metadata</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Sharing Section -->
+        <section id="sharing-section" class="section" style="display: none;">
+            <h2>File Sharing</h2>
+            
+            <!-- Share File -->
+            <div class="subsection">
+                <h3>Share File</h3>
+                <form id="share-form">
+                    <input type="text" id="share-file-id" placeholder="File ID" required>
+                    <input type="text" id="share-recipient" placeholder="Recipient Username" required>
+                    <select id="share-permission">
+                        <option value="read">Read</option>
+                        <option value="write">Write</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                    <input type="datetime-local" id="share-expires" placeholder="Expires At (optional)">
+                    <input type="number" id="share-max-downloads" placeholder="Max Downloads (optional)">
+                    <button type="submit">Share File</button>
+                </form>
+            </div>
+
+            <!-- My Shares -->
+            <div class="subsection">
+                <h3>My Shares</h3>
+                <form id="my-shares-form">
+                    <input type="text" id="shares-file-id" placeholder="File ID" required>
+                    <button type="submit">Get File Shares</button>
+                </form>
+                <div id="my-shares-list"></div>
+            </div>
+
+            <!-- Received Shares -->
+            <div class="subsection">
+                <h3>Received Shares</h3>
+                <button id="refresh-received-shares">Refresh Received Shares</button>
+                <div id="received-shares-list"></div>
+            </div>
+
+            <!-- Revoke Share -->
+            <div class="subsection">
+                <h3>Revoke Share</h3>
+                <form id="revoke-form">
+                    <input type="text" id="revoke-share-id" placeholder="Share ID" required>
+                    <button type="submit">Revoke Share</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Verification Section -->
+        <section id="verification-section" class="section" style="display: none;">
+            <h2>Verification</h2>
+            
+            <!-- Get Public Key -->
+            <div class="subsection">
+                <h3>Get User Public Key</h3>
+                <form id="pubkey-form">
+                    <input type="text" id="pubkey-user-id" placeholder="User ID" required>
+                    <button type="submit">Get Public Key</button>
+                </form>
+                <div id="pubkey-result"></div>
+            </div>
+
+            <!-- Generate Verification -->
+            <div class="subsection">
+                <h3>Generate Verification Code</h3>
+                <form id="verify-generate-form">
+                    <input type="text" id="verify-target-user" placeholder="Target User ID" required>
+                    <button type="submit">Generate Code</button>
+                </form>
+                <div id="verify-code-result"></div>
+            </div>
+
+            <!-- Confirm Verification -->
+            <div class="subsection">
+                <h3>Confirm Verification</h3>
+                <form id="verify-confirm-form">
+                    <input type="text" id="verify-code-input" placeholder="Verification Code" required>
+                    <button type="submit">Confirm Verification</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Response Log -->
+        <section class="section">
+            <h2>API Response Log</h2>
+            <button id="clear-log">Clear Log</button>
+            <div id="response-log"></div>
+        </section>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html> 
