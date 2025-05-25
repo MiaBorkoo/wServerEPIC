@@ -14,13 +14,15 @@ class FileShareRequest(BaseModel):
     file_id: UUID
     recipient_username: str = Field(..., max_length=255)
     encrypted_data_key: bytes
-    permission_level: str = Field(..., pattern="^(read|write|admin)$")
     expires_at: Optional[datetime] = None
     share_grant_hmac: str = Field(..., max_length=64)
     share_chain_hmac: str = Field(..., max_length=64)
 
 class ShareRevokeRequest(BaseModel):
     share_id: UUID
+
+class FileDeleteRequest(BaseModel):
+    file_id: UUID
 
 # Response schemas
 class FileResponse(BaseModel):
@@ -38,7 +40,6 @@ class ShareResponse(BaseModel):
     share_id: UUID
     file_id: UUID
     recipient_id: UUID
-    permission_level: str
     granted_at: datetime
     expires_at: Optional[datetime]
     revoked_at: Optional[datetime]

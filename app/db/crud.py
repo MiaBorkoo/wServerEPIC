@@ -6,6 +6,7 @@ import time
 from typing import List, Tuple, Optional, Dict, Any
 import hashlib
 import hmac
+import os
 
 from app.db.models import User, File, Share, FileAuditLog
 from app.core.security import compute_hmac, verify_hmac, hash_ip_address
@@ -154,6 +155,7 @@ def get_user_shared_files(db: Session, user_id: UUID, limit: int = 100, offset: 
         )
     ).order_by(Share.granted_at.desc()).limit(limit).offset(offset).all()
 
+# TODO: Remove if not needed, should be replaced by hard_delete_file, right?
 def soft_delete_file(db: Session, file_id: UUID, user_id: UUID) -> bool:
     """Soft delete a file (only owner can delete)"""
     result = db.query(File).filter(
@@ -162,6 +164,30 @@ def soft_delete_file(db: Session, file_id: UUID, user_id: UUID) -> bool:
         "is_deleted": True,
         "deleted_at": func.now()
     })
+    db.commit()
+    return result > 0
+
+def hard_delete_file(db: Session, file_id: UUID, user_id: UUID) -> bool:
+    """Hard delete a file - removes both database record and physical file"""
+    # Get file record first to access storage path
+    file_record = db.query(File).filter(
+        and_(File.file_id == file_id, File.owner_id == user_id, File.is_deleted == False)
+    ).first()
+    
+    if not file_record:
+        return False
+    
+    # Delete physical file
+    try:
+        if os.path.exists(file_record.server_storage_path):
+            os.remove(file_record.server_storage_path)
+    except OSError:
+        pass  # Continue even if file deletion fails
+    
+    # Delete database record
+    result = db.query(File).filter(
+        and_(File.file_id == file_id, File.owner_id == user_id)
+    ).delete()
     db.commit()
     return result > 0
 
@@ -179,7 +205,6 @@ def create_share(
     owner_id: UUID,
     recipient_id: UUID,
     encrypted_data_key: bytes,
-    permission_level: str,
     share_grant_hmac: str,
     share_chain_hmac: str,
     expires_at: Optional[datetime] = None
@@ -190,7 +215,6 @@ def create_share(
         owner_id=owner_id,
         recipient_id=recipient_id,
         encrypted_data_key=encrypted_data_key,
-        permission_level=permission_level,
         share_grant_hmac=share_grant_hmac,
         share_chain_hmac=share_chain_hmac,
         expires_at=expires_at
@@ -294,7 +318,7 @@ def verify_file_integrity(file: File, expected_hmac: str, hmac_key: str) -> bool
 
 def verify_share_integrity(share: Share, expected_hmac: str, hmac_key: str) -> bool:
     """Verify share integrity using HMAC"""
-    share_data = f"{share.share_id}{share.file_id}{share.owner_id}{share.recipient_id}{share.permission_level}"
+    share_data = f"{share.share_id}{share.file_id}{share.owner_id}{share.recipient_id}"
     return verify_hmac(share_data, hmac_key, expected_hmac)
 
 def verify_audit_chain_integrity(db: Session, file_id: UUID) -> bool:

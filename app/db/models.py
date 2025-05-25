@@ -93,7 +93,6 @@ class Share(Base):
     owner_id = Column(GUID(), ForeignKey("users.user_id"), nullable=False)
     recipient_id = Column(GUID(), ForeignKey("users.user_id"), nullable=False)
     encrypted_data_key = Column(LargeBinary, nullable=False)
-    permission_level = Column(String(20), nullable=False)
     granted_at = Column(get_timestamp_type(), default=func.now())
     expires_at = Column(get_timestamp_type(), nullable=True)
     revoked_at = Column(get_timestamp_type(), nullable=True)

@@ -1,14 +1,15 @@
-from fastapi import APIRouter, HTTPException, Depends, Request, status, UploadFile, File as FastAPIFile
+from fastapi import APIRouter, HTTPException, Depends, Request, status, UploadFile, File as FastAPIFile, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from uuid import UUID
+from uuid import UUID, uuid4
 from typing import List
 import time
 import os
 import io
+import base64
 
 from app.schemas.files import (
-    FileUploadRequest, FileShareRequest, ShareRevokeRequest,
+    FileUploadRequest, FileShareRequest, ShareRevokeRequest, FileDeleteRequest,
     FileResponse, ShareResponse, UserFilesResponse, 
     AuditLogResponse, PaginationParams
 )
@@ -22,23 +23,65 @@ router = APIRouter()
 @router.post("/upload", response_model=dict)
 async def upload_file(
     request: Request,
-    file_request: FileUploadRequest,
+    file: UploadFile = FastAPIFile(...),
+    file_id: str = Form(None),
+    filename_encrypted: str = Form(...),
+    file_size_encrypted: str = Form(...),
+    file_data_hmac: str = Form(...),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """Upload a file with integrity protection and audit logging"""
     try:
-        # Create file record
+        # Generate UUID for file if not provided (per requirements REQ-FILE-001)
+        if file_id:
+            try:
+                # Validate UUID format if provided
+                file_uuid = UUID(file_id) if file_id.count('-') == 4 else uuid4()
+            except ValueError:
+                file_uuid = uuid4()
+        else:
+            file_uuid = uuid4()
+        
+        # Create files directory if it doesn't exist
+        files_dir = "files"
+        os.makedirs(files_dir, exist_ok=True)
+        
+        # Store file with UUID as filename (per requirements REQ-FILE-001)
+        file_path = os.path.join(files_dir, str(file_uuid))
+        
+        # Save the uploaded file content
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        # Decode base64 encoded metadata
+        filename_encrypted_bytes = base64.b64decode(filename_encrypted)
+        file_size_encrypted_bytes = base64.b64decode(file_size_encrypted)
+        
+        # Create file record in database (per requirements REQ-FILE-002)
         file_record = crud.create_file(
             db=db,
             owner_id=current_user.user_id,
-            filename_encrypted=file_request.filename_encrypted,
-            file_size_encrypted=file_request.file_size_encrypted,
-            file_data_hmac=file_request.file_data_hmac,
-            server_storage_path=file_request.server_storage_path
+            filename_encrypted=filename_encrypted_bytes,
+            file_size_encrypted=file_size_encrypted_bytes,
+            file_data_hmac=file_data_hmac,
+            server_storage_path=file_path
         )
         
-        # Create audit log entry
+        # Use the database-generated UUID as our file_uuid
+        file_uuid = file_record.file_id
+        
+        # Rename the file to match the database UUID
+        new_file_path = os.path.join(files_dir, str(file_uuid))
+        if file_path != new_file_path:
+            os.rename(file_path, new_file_path)
+            # Update the path in database
+            file_record.server_storage_path = new_file_path
+            db.commit()
+            db.refresh(file_record)
+        
+        # Create audit log entry (per requirements REQ-AUDIT-002)
         client_ip = get_client_ip(request)
         log_data = f"{file_record.file_id}{current_user.user_id}upload{int(time.time())}"
         log_hmac = compute_hmac(log_data, "audit_log_key")
@@ -54,11 +97,16 @@ async def upload_file(
         
         return {
             "status": "success", 
-            "file_id": file_record.file_id,
+            "file_id": str(file_record.file_id),
             "upload_timestamp": file_record.upload_timestamp
         }
         
     except Exception as e:
+        # Clean up file if database operation failed
+        if 'file_path' in locals() and os.path.exists(file_path):
+            os.remove(file_path)
+        if 'new_file_path' in locals() and os.path.exists(new_file_path):
+            os.remove(new_file_path)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"status": "error", "message": f"Upload failed: {str(e)}"}
@@ -186,7 +234,6 @@ async def share_file(
             owner_id=current_user.user_id,
             recipient_id=recipient.user_id,
             encrypted_data_key=share_request.encrypted_data_key,
-            permission_level=share_request.permission_level,
             share_grant_hmac=share_request.share_grant_hmac,
             share_chain_hmac=share_request.share_chain_hmac,
             expires_at=share_request.expires_at
@@ -358,16 +405,16 @@ async def get_file_audit_logs(
             detail={"status": "error", "message": f"Failed to get audit logs: {str(e)}"}
         )
 
-@router.delete("/{file_id}", response_model=dict)
+@router.delete("/delete", response_model=dict)
 async def delete_file(
     request: Request,
-    file_id: UUID,
+    delete_request: FileDeleteRequest,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Soft delete a file (only owner can delete)"""
+    """Delete a file permanently (only owner can delete)"""
     try:
-        success = crud.soft_delete_file(db, file_id, current_user.user_id)
+        success = crud.hard_delete_file(db, delete_request.file_id, current_user.user_id)
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -376,12 +423,12 @@ async def delete_file(
         
         # Create audit log
         client_ip = get_client_ip(request)
-        log_data = f"{file_id}{current_user.user_id}delete{int(time.time())}"
+        log_data = f"{delete_request.file_id}{current_user.user_id}delete{int(time.time())}"
         log_hmac = compute_hmac(log_data, "audit_log_key")
         
         crud.create_audit_log(
             db=db,
-            file_id=file_id,
+            file_id=delete_request.file_id,
             user_id=current_user.user_id,
             action="delete",
             client_ip=client_ip,

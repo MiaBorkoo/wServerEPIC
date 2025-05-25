@@ -98,11 +98,7 @@
                 <form id="share-form">
                     <input type="text" id="share-file-id" placeholder="File ID" required>
                     <input type="text" id="share-recipient" placeholder="Recipient Username" required>
-                    <select id="share-permission">
-                        <option value="read">Read</option>
-                        <option value="write">Write</option>
-                        <option value="admin">Admin</option>
-                    </select>
+                    <div class="permission-info">Permission: Read Only</div>
                     <input type="datetime-local" id="share-expires" placeholder="Expires At (optional)">
                     <input type="number" id="share-max-downloads" placeholder="Max Downloads (optional)">
                     <button type="submit">Share File</button>

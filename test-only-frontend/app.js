@@ -229,7 +229,7 @@ function generateFakeHash(input) {
         hash = ((hash << 5) - hash) + char;
         hash = hash & hash; // Convert to 32-bit integer
     }
-    return 'fake_hash_' + Math.abs(hash).toString(16) + '_' + Date.now();
+    return 'fake_hash_' + Math.abs(hash).toString(16);
 }
 
 function generateFakeEncryption(data, key) {
@@ -300,6 +300,7 @@ async function handleTOTP(e) {
     
     try {
         const response = await makeApiCall('POST', CONFIG.ENDPOINTS.TOTP, {
+            username: currentUser,
             totp_code: totpCode
         }, true);
         
@@ -404,7 +405,8 @@ async function handleFileUpload(e) {
 async function refreshFilesList() {
     try {
         const response = await makeApiCall('GET', CONFIG.ENDPOINTS.FILES_LIST);
-        displayFilesList(response.files || []);
+        const allFiles = [...(response.owned_files || []), ...(response.shared_files || [])];
+        displayFilesList(allFiles);
     } catch (error) {
         alert(`Failed to refresh files: ${error.message}`);
     }
@@ -498,7 +500,6 @@ async function handleFileShare(e) {
     
     const fileId = document.getElementById('share-file-id').value.trim();
     const recipient = document.getElementById('share-recipient').value.trim();
-    const permission = document.getElementById('share-permission').value;
     const expiresAt = document.getElementById('share-expires').value;
     const maxDownloads = document.getElementById('share-max-downloads').value;
     
@@ -510,7 +511,6 @@ async function handleFileShare(e) {
     const shareData = {
         file_id: fileId,
         recipient_username: recipient,
-        permission_level: permission,
         encrypted_data_key: 'test-encrypted-key-' + Date.now(),
         share_grant_hmac: 'test-share-hmac-' + Date.now(),
         share_chain_hmac: 'test-chain-hmac-' + Date.now()
@@ -577,7 +577,7 @@ function displaySharesList(shares, container) {
         shareDiv.innerHTML = `
             <strong>Share ID:</strong> ${share.share_id}<br>
             <strong>File ID:</strong> ${share.file_id}<br>
-            <strong>Permission:</strong> ${share.permission_level}<br>
+            <strong>Permission:</strong> Read Only<br>
             <strong>Granted:</strong> ${new Date(share.granted_at).toLocaleString()}<br>
             ${share.expires_at ? `<strong>Expires:</strong> ${new Date(share.expires_at).toLocaleString()}<br>` : ''}
             ${share.max_downloads ? `<strong>Max Downloads:</strong> ${share.max_downloads}<br>` : ''}

@@ -27,7 +27,7 @@ const CONFIG = {
         FILE_SHARE: '/api/files/share',
         SHARE_REVOKE: '/api/files/share/{share_id}',
         FILE_SHARES: '/api/files/shares',
-        RECEIVED_SHARES: '/api/shares/received',
+        RECEIVED_SHARES: '/api/files/shares/received',
         
         // Verification endpoints
         USER_PUBLIC_KEY: '/api/users/{user_id}/public_key',
