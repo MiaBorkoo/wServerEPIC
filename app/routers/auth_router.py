@@ -1,8 +1,10 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from secrets import token_urlsafe
 from sqlalchemy.orm import Session
 import json  # ADDED: For JSON serialization
 import base64  # ADDED: For bytes to base64 conversion
+import time
+from collections import defaultdict
 
 from app.schemas.users import RegisterRequest, LoginRequest, TOTPRequest, ChangePasswordRequest
 from app.db import crud # Assuming crud.py contains all db operations
@@ -11,6 +13,22 @@ from app.services.totp_service import verify_totp # Placeholder for actual TOTP 
 from app.core.security import create_access_token  # ADDED: For proper JWT token generation
 
 router = APIRouter()
+
+# Rate limiting state
+login_attempts = defaultdict(list)
+RATE_LIMIT = 5  # attempts
+RATE_WINDOW = 60  # seconds
+
+def check_rate_limit(username: str) -> bool:
+    now = time.time()
+    # Clean old attempts
+    login_attempts[username] = [t for t in login_attempts[username] if now - t < RATE_WINDOW]
+    # Check if over limit
+    if len(login_attempts[username]) >= RATE_LIMIT:
+        return False
+    # Add new attempt
+    login_attempts[username].append(now)
+    return True
 
 @router.post("/register")
 def register_user(data: RegisterRequest, db: Session = Depends(get_db)):  # ADDED: Database session dependency
@@ -36,21 +54,22 @@ def register_user(data: RegisterRequest, db: Session = Depends(get_db)):  # ADDE
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-
-
 @router.post("/login")
-def login(data: LoginRequest, db: Session = Depends(get_db)):  # ADDED: Database session dependency
-    # TODO: Implement proper session management. This is a placeholder.
+def login(data: LoginRequest, db: Session = Depends(get_db)):
+    if not data.nonce:
+        raise HTTPException(status_code=422, detail="Nonce is required")
+        
+    if not check_rate_limit(data.username):
+        raise HTTPException(status_code=429, detail="Too many login attempts")
+        
     user = crud.get_user_by_username(db, data.username)
-    if not user or not crud.verify_user_auth(db, data.username, data.auth_key):  # FIXED: Pass db session
+    if not user or not crud.verify_user_auth(db, data.username, data.auth_key):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    # Generate temporary token for TOTP flow - FIXED: Use JWT instead of random token
+    # Generate temporary token for TOTP flow
     temp_token = create_access_token(data={"sub": str(user.user_id), "temp": True})
     
-    # TODO: Store session_token associated with the user and manage its lifecycle.
-    # TODO: Determine if TOTP is actually required for the user.
-    return {"session_token": temp_token, "totp_required": True} # Placeholder
+    return {"temp_token": temp_token, "totp_required": True}
 
 @router.post("/totp")
 def verify_totp_and_return_mek(data: TOTPRequest, db: Session = Depends(get_db)):  # ADDED: Database session dependency

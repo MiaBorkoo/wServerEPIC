@@ -14,6 +14,7 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     username: str
     auth_key: str
+    nonce: str
 
 class TOTPRequest(BaseModel):
     username: str
