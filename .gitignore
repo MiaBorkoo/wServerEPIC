@@ -9,5 +9,4 @@ key.pem
 cert.pem
 *.db
 .env
-ProjectRequirementsDoc.txt
 files/

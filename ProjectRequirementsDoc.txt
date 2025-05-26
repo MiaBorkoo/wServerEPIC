@@ -1,0 +1,361 @@
+Secure File Sharing Server - Product Requirements Document
+1. Executive Summary
+This PRD defines the server-side requirements for a secure, end-to-end encrypted file sharing platform designed to maintain confidentiality, integrity, and authenticity even when the server infrastructure is compromised. The server acts as an untrusted storage and coordination layer, with all cryptographic operations and sensitive data handling performed client-side.
+2. Security Architecture Assumptions
+2.1 Threat Model
+
+Compromised Server: Assume complete server compromise including database, file system, and application code
+Network Attacks: Assume network traffic interception and manipulation attempts
+Malicious Actors: Assume attackers have administrative access to server infrastructure
+Client Trust: Only client devices are considered trusted computing environments
+
+2.2 Zero-Knowledge Principle
+The server must operate without access to:
+
+Plaintext file contents
+Plaintext metadata (filenames, sizes, types)
+User encryption keys or Master Encryption Keys (MEK)
+Decrypted file sharing keys
+
+3. Authentication & User Management Requirements
+3.1 User Registration
+REQ-AUTH-001: Server MUST store only the following user data:
+
+Unique username (plaintext, for lookup)
+Authentication salt (32-byte random value)
+Encryption salt (32-byte random value)
+Server key hash (Argon2id output, never the actual server key)
+Encrypted Master Encryption Key (encrypted client-side)
+TOTP secret for two-factor authentication
+User public key (for asymmetric encryption)
+Account creation timestamp
+
+REQ-AUTH-002: Server MUST generate secure random salts using cryptographically secure random number generator
+REQ-AUTH-003: Server MUST validate username uniqueness and enforce NIST SP800-63B password policy server-side
+3.2 Authentication Flow
+REQ-AUTH-004: Server MUST implement two-phase authentication:
+
+First factor: Server key hash verification with client-provided nonce
+Second factor: TOTP code verification using time-based algorithm
+
+REQ-AUTH-005: Server MUST provide salt retrieval endpoint: GET /api/user/{username}/salts
+
+Return: {auth_salt, enc_salt}
+No authentication required for this endpoint
+
+REQ-AUTH-006: Server MUST implement temporary session tokens for 2FA flow:
+
+Issue temporary token after first factor success
+Temporary token expires in 5 minutes
+Full session token issued only after TOTP verification
+
+REQ-AUTH-007: Server MUST validate TOTP codes with time window tolerance (±1 period)
+3.3 Session Management
+REQ-AUTH-008: Server MUST implement JWT-based session management:
+
+Session tokens expire after 24 hours
+Include user ID and permissions in JWT payload
+Use cryptographically secure JWT secret
+
+REQ-AUTH-009: Server MUST invalidate all user sessions on password change
+REQ-AUTH-010: Server MUST provide session validation middleware for protected endpoints
+REQ-AUTH-011: Server MUST implement session logout endpoint for secure session termination
+3.4 Password Management
+REQ-AUTH-011: Server MUST support atomic password changes:
+
+Update server key hash
+Update encryption salt
+Update encrypted MEK
+Require TOTP verification for password changes
+
+REQ-AUTH-012: Server MUST never store or log plaintext passwords
+4. File Storage Requirements
+4.1 File Upload
+REQ-FILE-001: Server MUST store uploaded files with UUID-based naming:
+
+Generate UUID for each file upload
+Store files in secure directory with UUID as filename
+Maintain no correlation between UUID and original filename
+
+REQ-FILE-002: Server MUST store encrypted file metadata in database:
+sqlfiles {
+    file_id UUID PRIMARY KEY,
+    owner_id UUID NOT NULL REFERENCES users(user_id),
+    filename_encrypted BYTEA NOT NULL,  -- Encrypted filename
+    file_size_encrypted BYTEA NOT NULL, -- Encrypted file size
+    upload_timestamp BIGINT NOT NULL,   -- Unix timestamp
+    -- Critical HMACs for integrity
+    file_data_hmac VARCHAR(64) NOT NULL,  -- HMAC of all metadata
+    -- Server cannot modify without breaking this HMAC
+    server_storage_path VARCHAR(255) NOT NULL,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    deleted_at TIMESTAMP NULL
+}
+REQ-FILE-003: Server MUST validate client-provided HMACs before storing file records
+REQ-FILE-004: Server MUST enforce storage quotas (2GiB per team)
+REQ-FILE-005: Server MUST implement atomic file upload operations (database + file system)
+4.2 File Retrieval
+REQ-FILE-006: Server MUST implement file listing endpoint:
+
+Return encrypted metadata for owned and shared files
+Include sharing permissions and expiration data
+Verify user authorization before returning file list
+
+REQ-FILE-007: Server MUST implement secure file download:
+
+Verify user ownership or valid share authorization
+Return raw encrypted file data
+Log download attempts in audit trail
+Enforce download limits if specified in shares
+
+REQ-FILE-008: Server MUST verify HMAC integrity before file operations
+4.3 File Deletion
+REQ-FILE-009: Server MUST implement hard deletion:
+
+Remove files immediately from both filesystem and database
+Maintain audit trail of deletion events
+No file recovery possible after deletion
+
+REQ-FILE-010: Server MUST implement secure file deletion:
+
+Remove physical file from filesystem
+Remove database records atomically
+Update audit logs
+
+5. File Sharing Requirements
+5.1 Share Management
+REQ-SHARE-001: Server MUST implement envelope encryption sharing model:
+sqlshares {
+    share_id UUID PRIMARY KEY,
+    file_id UUID NOT NULL REFERENCES files(file_id),
+    owner_id UUID NOT NULL REFERENCES users(user_id),
+    recipient_id UUID NOT NULL REFERENCES users(user_id),
+    -- Encrypted data key for this recipient
+    encrypted_data_key BYTEA NOT NULL,
+    -- Permission level (read, write, admin)
+    permission_level VARCHAR(20) NOT NULL,
+    granted_at TIMESTAMP DEFAULT NOW(),
+    expires_at TIMESTAMP NULL,
+    revoked_at TIMESTAMP NULL,
+    -- Integrity protection for sharing
+    share_grant_hmac VARCHAR(64) NOT NULL,    -- HMAC of share grant
+    share_chain_hmac VARCHAR(64) NOT NULL,    -- HMAC linking to previous shares
+    -- Only owner can create valid share HMACs
+    UNIQUE(file_id, recipient_id)
+}
+REQ-SHARE-002: Server MUST validate share authorization chain:
+
+Verify share_grant_hmac for each share record
+Validate share_chain_hmac linkage
+Prevent unauthorized share modifications
+
+REQ-SHARE-003: Server MUST implement time-limited shares:
+
+Check expiration timestamps before granting access
+Automatically revoke expired shares
+Support indefinite shares (NULL expires_at)
+
+REQ-SHARE-004: Server MUST enforce download limits:
+
+Track downloads_used counter
+Block access when max_downloads exceeded
+Allow unlimited downloads when max_downloads is NULL
+
+5.2 Share Operations
+REQ-SHARE-005: Server MUST implement share granting endpoint:
+
+Verify requestor is file owner
+Validate recipient user exists
+Store encrypted data key and permissions
+Generate audit log entry
+
+REQ-SHARE-006: Server MUST implement share revocation:
+
+Mark share as revoked with timestamp
+Prevent future access by revoked users
+Maintain audit trail of revocation
+
+REQ-SHARE-007: Server MUST support permission levels:
+
+read: Download file only
+write: Download and upload new versions (TODO: Version control not fully specified)
+admin: Read, write, and share with others
+
+5.3 Trust on First Use (TOFU) & Verification
+REQ-SHARE-008: Server MUST implement TOFU mechanisms:
+
+Store user public key fingerprints
+Flag first-time user interactions
+Provide public key verification endpoints
+
+REQ-SHARE-009: Server MUST support out-of-band verification:
+
+Generate verification codes for new user interactions
+Provide endpoints for verification code exchange
+Log verification attempts and successes
+
+TODO: The current design lacks detailed TOFU implementation. Requirements should specify:
+
+Public key fingerprint verification workflow
+Out-of-band verification code generation and validation
+User notification system for new sharing attempts
+Verification status tracking in database
+
+6. Audit & Compliance Requirements
+6.1 Audit Logging
+REQ-AUDIT-001: Server MUST implement tamper-evident audit logging:
+sqlfile_audit_log {
+    log_id UUID PRIMARY KEY,
+    file_id UUID NOT NULL REFERENCES files(file_id),
+    user_id UUID NOT NULL REFERENCES users(user_id),
+    action VARCHAR(50) NOT NULL,  -- upload, download, share, revoke, delete
+    timestamp BIGINT NOT NULL,
+    client_ip_hash VARCHAR(64),   -- Hashed IP for privacy
+    -- Chain of custody HMAC
+    log_entry_hmac VARCHAR(64) NOT NULL,
+    previous_log_hmac VARCHAR(64),  -- Links to previous entry
+    INDEX(file_id, timestamp)
+}
+REQ-AUDIT-002: Server MUST log all file operations:
+
+File uploads, downloads, deletions
+Share grants and revocations
+Authentication attempts (success/failure)
+Session creation and termination
+
+REQ-AUDIT-003: Server MUST implement audit log integrity protection:
+
+Generate HMAC for each log entry
+Link entries with previous_log_hmac for tamper detection
+Validate audit chain integrity on retrieval
+
+REQ-AUDIT-004: Server MUST hash client IP addresses for privacy while maintaining audit capability
+6.2 Compliance Features
+REQ-AUDIT-005: Server MUST provide audit log export functionality for authorized administrators
+REQ-AUDIT-006: Server MUST implement log retention policies with configurable retention periods
+7. API Requirements
+7.1 REST API Structure
+REQ-API-001: Server MUST implement REST API with the following endpoints:
+Authentication:
+
+GET /api/user/{username}/salts - Retrieve user salts
+POST /api/auth/register - User registration
+POST /api/auth/login - First factor authentication
+POST /api/auth/totp - Second factor authentication
+POST /api/auth/logout - Session termination
+POST /api/user/change_password - Password change
+
+File Management:
+
+GET /api/files - List users files
+POST /api/files/upload - Upload encrypted file (file_id, metadata in request body)
+POST /api/files/download - Download file (file_id in request body)
+DELETE /api/files/delete - Delete file (file_id in request body)
+POST /api/files/metadata - Get file metadata (file_id in request body)
+
+Sharing:
+
+POST /api/files/share - Share file with user (file_id, recipient info in request body)
+DELETE /api/files/share/{share_id} - Revoke share by share_id
+GET /api/files/shares - List file shares (file_id in query params)
+GET /api/shares/received - List received shares
+
+Verification:
+
+GET /api/users/{user_id}/public_key - Get user public key
+POST /api/verify/generate - Generate verification code
+POST /api/verify/confirm - Confirm verification
+
+7.2 API Security
+REQ-API-002: Server MUST implement rate limiting on all endpoints:
+
+Authentication: 5 attempts per minute per IP
+File operations: 100 requests per minute per user
+Verification: 3 attempts per hour per user
+
+REQ-API-003: Server MUST validate all input parameters and return appropriate HTTP status codes
+REQ-API-004: Server MUST implement CORS headers for web client support
+REQ-API-005: Server MUST log all API requests with sanitized parameters (no sensitive data)
+8. Database Requirements
+8.1 Database Security
+REQ-DB-001: Server MUST use parameterized queries to prevent SQL injection
+REQ-DB-002: Server MUST implement database connection pooling with authentication
+REQ-DB-003: Server MUST encrypt database connections using TLS
+REQ-DB-004: Server MUST implement database backup encryption (TODO: Backup strategy not specified)
+8.2 Data Integrity
+REQ-DB-005: Server MUST implement foreign key constraints to maintain referential integrity
+REQ-DB-006: Server MUST use database transactions for multi-table operations
+REQ-DB-007: Server MUST implement database-level uniqueness constraints where required
+9. Network Security Requirements
+9.1 TLS/SSL Configuration
+REQ-NET-001: Server MUST enforce TLS 1.2 or higher for all connections
+REQ-NET-002: Server MUST implement certificate validation and pinning support
+REQ-NET-003: Server MUST use strong cipher suites and disable weak encryption
+REQ-NET-004: Server MUST implement HSTS headers for web client support
+9.2 Network Hardening
+REQ-NET-005: Server MUST implement DDoS protection and traffic filtering
+REQ-NET-006: Server MUST bind services only to necessary network interfaces
+REQ-NET-007: Server MUST implement proper firewall rules for port access
+10. Performance & Scalability Requirements
+10.1 Performance Targets
+REQ-PERF-001: Server MUST handle concurrent file uploads up to available bandwidth
+REQ-PERF-002: Server MUST respond to authentication requests within 2 seconds
+REQ-PERF-003: Server MUST support concurrent user sessions based on available resources
+10.2 Resource Management
+REQ-PERF-004: Server MUST implement file streaming for large file downloads
+REQ-PERF-005: Server MUST implement cleanup processes for temporary files and expired sessions
+REQ-PERF-006: Server MUST monitor resource usage and implement appropriate limits
+11. Error Handling & Recovery
+11.1 Error Handling
+REQ-ERR-001: Server MUST implement comprehensive error handling without exposing sensitive information
+REQ-ERR-002: Server MUST return consistent error response format across all endpoints
+REQ-ERR-003: Server MUST log errors with sufficient detail for debugging while protecting sensitive data
+11.2 Recovery Procedures
+REQ-ERR-004: Server MUST implement database rollback for failed transactions
+REQ-ERR-005: Server MUST provide health check endpoints for monitoring
+REQ-ERR-006: Server MUST implement graceful shutdown procedures
+12. Monitoring & Alerting
+REQ-MON-001: Server MUST implement logging for security events:
+
+Failed authentication attempts
+Suspicious file access patterns
+Audit log integrity violations
+Rate limit violations
+
+REQ-MON-002: Server MUST provide metrics endpoints for system monitoring
+REQ-MON-003: Server MUST implement alerting for critical security events
+13. Deployment & Operations
+13.1 Deployment Requirements
+REQ-OPS-001: Server MUST support containerized deployment (Docker)
+REQ-OPS-002: Server MUST externalize configuration through environment variables
+REQ-OPS-003: Server MUST support database migration scripts
+13.2 Operational Security
+REQ-OPS-004: Server MUST implement secure secret management for JWT keys and database credentials
+REQ-OPS-005: Server MUST support log aggregation and centralized monitoring
+REQ-OPS-006: Server MUST implement backup and recovery procedures for critical data
+14. Testing & Validation Requirements
+REQ-TEST-001: Server MUST pass penetration testing for common vulnerabilities:
+
+OWASP Top 10 compliance
+Input validation attacks
+Authentication bypass attempts
+Authorization escalation tests
+
+REQ-TEST-002: Server MUST implement comprehensive unit and integration tests
+REQ-TEST-003: Server MUST validate cryptographic implementations against test vectors
+15. Outstanding Design Issues (TODOs)
+
+TOFU Implementation: Detailed workflow for Trust on First Use and out-of-band verification needs specification
+Key Rotation: File DEK rotation strategy and implementation not fully defined
+Version Control: File versioning system mentioned but not fully specified
+Recovery Procedures: Account recovery and MEK corruption recovery processes need specification
+Audit Log Archival: Long-term audit log storage and archival strategy needed
+Performance Benchmarks: Specific performance targets and load testing requirements needed
+Disaster Recovery: Full disaster recovery and business continuity procedures needed
+Compliance Framework: Specific compliance requirements (GDPR, HIPAA, etc.) need definition
+
+16. Non-Functional Requirements
+REQ-NF-001: Server code MUST be implemented in Python using FastAPI framework
+REQ-NF-003: Server MUST support deployment on GOBBLER.INFO virtual hosts
+REQ-NF-004: Server MUST limit total storage usage to 2GiB per team
+This PRD provides comprehensive server-side requirements for the secure file sharing platform while maintaining the zero-knowledge security model required by the project specification.
