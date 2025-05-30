@@ -2,6 +2,7 @@ import time, pyotp
 from typing import Final
 from sqlalchemy.orm import Session
 from app.db import models
+from app.core.security import decrypt_totp_secret
 
 _STEP:   Final[int] = 30      # RFC default
 _DIGITS: Final[int] = 6
@@ -17,13 +18,18 @@ def verify_totp(db: Session, username: str, code: str) -> bool:
     if not user:
         return False
 
-    totp = pyotp.TOTP(user.totp_secret, interval=_STEP, digits=_DIGITS)
+    
+    secret = decrypt_totp_secret(user.totp_secret) \
+             if isinstance(user.totp_secret, (bytes, bytearray)) \
+             else user.totp_secret
+
+    totp = pyotp.TOTP(secret, interval=_STEP, digits=_DIGITS)
 
     # verify against current / previous / next step
     if not totp.verify(code, valid_window=_WINDOW):
         return False
 
-    current_counter = totp.timecode(int(time.time()))
+    current_counter =  int(time.time())
     if user.totp_last_counter and current_counter <= user.totp_last_counter:
         return False          # replay within window
 
