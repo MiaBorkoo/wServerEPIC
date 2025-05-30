@@ -55,7 +55,7 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):  # ADDED: Database
 @router.post("/totp")
 def verify_totp_and_return_mek(data: TOTPRequest, db: Session = Depends(get_db)):  # ADDED: Database session dependency
     # TODO: Validate session from login before allowing TOTP verification.
-    if not verify_totp(data.username, data.totp_code): # Placeholder
+    if not verify_totp(db,data.username, data.totp_code): # Placeholder
         raise HTTPException(status_code=401, detail="Invalid TOTP")
     
     # TODO: Ensure that a valid session/state exists from the initial login step.

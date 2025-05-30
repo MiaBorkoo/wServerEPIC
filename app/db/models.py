@@ -56,6 +56,8 @@ class User(Base):
     auth_key = Column(String(128), nullable=False)  # Argon2id hash of server key
     encrypted_mek = Column(LargeBinary, nullable=False)  # Client-encrypted MEK
     totp_secret = Column(String(64), nullable=False)  # TOTP secret
+    totp_last_counter = Column(BigInteger) # new!
+
     public_key = Column(Text, nullable=False)
     created_at = Column(get_timestamp_type(), default=func.now())
     last_login = Column(get_timestamp_type(), nullable=True)
