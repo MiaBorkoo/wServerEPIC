@@ -10,6 +10,8 @@ import secrets
 import hashlib
 import hmac
 from uuid import UUID
+from cryptography.fernet import Fernet  # ADD: For TOTP encryption
+
 
 from app.db.database import get_db
 from app.db import crud
@@ -20,6 +22,14 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
+TOTP_ENCRYPTION_KEY = os.getenv("TOTP_ENCRYPTION_KEY")
+if not TOTP_ENCRYPTION_KEY:
+    # Generate a key for development 
+    TOTP_ENCRYPTION_KEY = Fernet.generate_key()
+    print(f"⚠️  Generated TOTP encryption key: {TOTP_ENCRYPTION_KEY.decode()}")
+    print("⚠️  Set TOTP_ENCRYPTION_KEY environment variable in production!")
+
+fernet = Fernet(TOTP_ENCRYPTION_KEY)
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -132,3 +142,11 @@ def get_client_ip(request: Request) -> str:
     if real_ip:
         return real_ip
     return request.client.host if request.client else "unknown" 
+
+def encrypt_totp_secret(secret: str) -> bytes:
+    """Encrypt TOTP secret for database storage"""
+    return fernet.encrypt(secret.encode())
+
+def decrypt_totp_secret(encrypted_secret: bytes) -> str:
+    """Decrypt TOTP secret from database"""
+    return fernet.decrypt(encrypted_secret).decode()

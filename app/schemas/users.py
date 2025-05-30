@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Dict, Any, Optional
+from pydantic import BaseModel, Field
+from typing import Dict, Any
 
 class RegisterRequest(BaseModel):
     username: str
@@ -14,10 +14,7 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     username: str
     auth_key: str
-
-class TOTPRequest(BaseModel):
-    username: str
-    totp_code: str
+    otp: str = Field(regex=r"^[0-9]{6}$") #removed TOTPRequest and added otp field
 
 class ChangePasswordRequest(BaseModel):
     username: str
