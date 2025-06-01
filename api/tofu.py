@@ -64,6 +64,8 @@ async def register_device(request: DeviceCertRequest):
             "trust_id": result["trust_id"]
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
