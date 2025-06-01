@@ -150,9 +150,16 @@ async def verify_qr_code(request: QRVerificationRequest):
         if not trust_status:
             raise HTTPException(status_code=404, detail="Trust relationship not found")
             
-        # Verify the QR code (you'll need to implement the actual verification logic)
-        # This is just a placeholder that accepts any code
-        verification_success = True
+        # Verify the QR code using actual decoding and validation logic
+        try:
+            decoded_data = b64decode(request.qr_code_data).decode("utf-8")
+            # Validate the decoded data (e.g., check format, match device ID and username)
+            if decoded_data == f"{request.username}:{request.device_id}":
+                verification_success = True
+            else:
+                verification_success = False
+        except Exception as e:
+            raise HTTPException(status_code=400, detail="Invalid QR code data")
         
         if verification_success:
             # Update trust level
