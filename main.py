@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 from api.auth import router as auth_router
+from api.tofu import router as tofu_router
 from database import create_file, create_shared_file, get_user_files, verify_user_auth, update_user_password, store_user, get_user_salts, get_encrypted_mek
 from totp import verify_totp
 import os
@@ -14,6 +15,9 @@ app = FastAPI(title="EPIC Server", description="Server for CS4455 Epic Project")
 
 # Mount authentication routes
 app.include_router(auth_router)
+
+# Mount TOFU routes
+app.include_router(tofu_router)
 
 app.add_middleware(
     CORSMiddleware,
