@@ -91,7 +91,7 @@ async def get_user_devices(username: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/api/tofu/trust")
-async def update_trust_level(request: TrustDecision):
+async def update_device_trust(request: TrustDecision):
     """Update trust level for a device."""
     try:
         # Validate trust level
