@@ -10,8 +10,10 @@ import secrets
 import hashlib
 import hmac
 from uuid import UUID
-from cryptography.fernet import Fernet  # ADD: For TOTP encryption
-
+from cryptography.fernet import Fernet
+import ntplib
+import time
+import logging
 
 from app.db.database import get_db
 from app.db import crud
@@ -22,14 +24,21 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
+# TOTP-SEED ENCRYPTION KEY
+# • We store the *TOTP seed* (the long-lived base-32 secret) encrypted
+#   in the database, never in plaintext.
+# • Encryption uses Fernet (AES-128-GCM + HMAC-SHA-256).
+
+APP_ENV = os.getenv("APP_ENV", "dev").lower() #choose environment
 TOTP_ENCRYPTION_KEY = os.getenv("TOTP_ENCRYPTION_KEY")
 if not TOTP_ENCRYPTION_KEY:
-    # Generate a key for development 
-    TOTP_ENCRYPTION_KEY = Fernet.generate_key()
-    print(f"⚠️  Generated TOTP encryption key: {TOTP_ENCRYPTION_KEY.decode()}")
-    print("⚠️  Set TOTP_ENCRYPTION_KEY environment variable in production!")
-
-fernet = Fernet(TOTP_ENCRYPTION_KEY)
+    if APP_ENV == "dev":
+        # Generate a key for development environments
+        TOTP_ENCRYPTION_KEY = Fernet.generate_key()
+        print(f"Dev/test Fernet key generated on the fly: {TOTP_ENCRYPTION_KEY.decode()}")
+    fernet = Fernet(TOTP_ENCRYPTION_KEY)
+else:
+    raise RuntimeError("TOTP_ENCRYPTION_KEY must be set in production!") #store it in your secret-manager and use 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -143,10 +152,11 @@ def get_client_ip(request: Request) -> str:
         return real_ip
     return request.client.host if request.client else "unknown" 
 
-def encrypt_totp_secret(secret: str) -> bytes:
-    """Encrypt TOTP secret for database storage"""
-    return fernet.encrypt(secret.encode())
+#Fernet helpers for encrypting the TOTP seed that lives in the DB. 
+def encrypt_totp_seed(seed: str) -> bytes:
+    """Encrypt TOTP seed for database storage"""
+    return fernet.encrypt(seed.encode())
 
-def decrypt_totp_secret(encrypted_secret: bytes) -> str:
-    """Decrypt TOTP secret from database"""
-    return fernet.decrypt(encrypted_secret).decode()
+def decrypt_totp_seed(encrypted_seed: bytes) -> str:
+    """Decrypt TOTP seed from database"""
+    return fernet.decrypt(encrypted_seed).decode()

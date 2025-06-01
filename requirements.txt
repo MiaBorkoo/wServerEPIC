@@ -9,3 +9,4 @@ passlib[bcrypt]
 python-multipart
 psycopg2-binary
 pyotp>=2.9,<3.0 
+

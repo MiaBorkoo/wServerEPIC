@@ -7,7 +7,7 @@ class RegisterRequest(BaseModel):
     enc_salt: str
     auth_key: str
     encrypted_mek: str
-    totp_secret: str
+    # totp_secret: str
     public_key: Dict[str, Any]
     user_data_hmac: str
 

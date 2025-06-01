@@ -7,8 +7,8 @@ import base64  # ADDED: For bytes to base64 conversion
 from app.schemas.users import RegisterRequest, LoginRequest, ChangePasswordRequest
 from app.db import crud # Assuming crud.py contains all db operations
 from app.db.database import get_db  # ADDED: Missing database dependency
-from app.services.totp_service import verify_totp # Placeholder for actual TOTP verification
-from app.core.security import create_access_token, encrypt_totp_secret  # ADDED: For proper JWT token generation
+from app.services.totp_service import new_secret, provisioning_uri, verify_totp 
+from app.core.security import create_access_token, encrypt_totp_seed, decrypt_totp_seed  # ADDED: For proper JWT token generation
 
 router = APIRouter()
 
@@ -21,6 +21,7 @@ def register_user(data: RegisterRequest, db: Session = Depends(get_db)):  # ADDE
             raise HTTPException(status_code=400, detail="Username already exists")
         
         # FIXED: Use correct CRUD function with all required parameters per REQ-AUTH-001
+        seed  = new_secret()
         user = crud.create_user(
             db=db,
             username=data.username, 
@@ -28,11 +29,17 @@ def register_user(data: RegisterRequest, db: Session = Depends(get_db)):  # ADDE
             enc_salt=data.enc_salt, 
             auth_key=data.auth_key,
             encrypted_mek=data.encrypted_mek,
-            totp_secret=encrypt_totp_secret(data.totp_secret),
+            totp_secret=encrypt_totp_seed(seed),
             public_key=data.public_key,  # Will be converted to JSON string in CRUD
             user_data_hmac=data.user_data_hmac  # FIXED: Use client-provided HMAC
         )
-        return {"status": "ok", "user_id": str(user.user_id)} # Return user ID
+        
+        return {
+            "status": "ok",
+            "user_id": str(user.user_id),
+            "totp_secret": seed,                       # client stores this
+            "otpauth_uri": provisioning_uri(seed, data.username)
+        } # Return user IDeturn user ID
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

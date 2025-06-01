@@ -11,3 +11,4 @@ cert.pem
 *.db
 .env
 files/
+.DS_Store

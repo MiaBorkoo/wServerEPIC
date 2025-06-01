@@ -2,7 +2,7 @@ import time, pyotp
 from typing import Final
 from sqlalchemy.orm import Session
 from app.db import models
-from app.core.security import decrypt_totp_secret
+from app.core.security import decrypt_totp_seed
 
 _STEP:   Final[int] = 30      # RFC default
 _DIGITS: Final[int] = 6
@@ -19,7 +19,7 @@ def verify_totp(db: Session, username: str, code: str) -> bool:
         return False
 
     
-    secret = decrypt_totp_secret(user.totp_secret) \
+    secret = decrypt_totp_seed(user.totp_secret) \
              if isinstance(user.totp_secret, (bytes, bytearray)) \
              else user.totp_secret
 
