@@ -2,7 +2,16 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional, List
-from database import supabase
+from database import (
+    store_device_certificate,
+    get_device_certificate,
+    get_user_certificates,
+    store_trust_relationship,
+    update_trust_level,
+    store_verification_event,
+    get_trust_status,
+    get_verification_history
+)
 from base64 import b64decode, b64encode
 
 router = APIRouter()
@@ -32,55 +41,27 @@ async def register_device(request: DeviceCertRequest):
     """Register a new device certificate."""
     try:
         # Check if device already exists
-        existing = supabase.table("device_certificates").select("*")\
-            .eq("username", request.username)\
-            .eq("device_id", request.device_id)\
-            .execute()
-        
-        if existing.data:
+        existing = get_device_certificate(request.username, request.device_id)
+        if existing:
             raise HTTPException(status_code=400, detail="Device already registered")
         
         # Convert base64 to bytes for storage
         public_key = b64decode(request.public_key)
         signature = b64decode(request.signature)
         
-        # Store certificate
-        cert_response = supabase.table("device_certificates").insert({
-            "username": request.username,
-            "device_id": request.device_id,
-            "public_key": public_key.hex(),
-            "expires_at": request.expires_at.isoformat(),
-            "signature": signature.hex()
-        }).execute()
-        
-        if not cert_response.data:
-            raise HTTPException(status_code=500, detail="Failed to store certificate")
-        
-        cert_id = cert_response.data[0]["cert_id"]
-        
-        # Create initial TOFU trust relationship
-        trust_response = supabase.table("trust_relationships").insert({
-            "username": request.username,
-            "trusted_cert_id": cert_id,
-            "trust_level": "tofu",
-            "verification_method": "tofu"
-        }).execute()
-        
-        if not trust_response.data:
-            raise HTTPException(status_code=500, detail="Failed to create trust relationship")
-        
-        # Log the TOFU event
-        supabase.table("verification_events").insert({
-            "trust_id": trust_response.data[0]["trust_id"],
-            "event_type": "tofu",
-            "success": True,
-            "details": "Initial device registration"
-        }).execute()
+        # Store certificate and create trust relationship
+        result = store_device_certificate(
+            request.username,
+            request.device_id,
+            public_key,
+            request.expires_at,
+            signature
+        )
         
         return {
             "status": "success",
-            "cert_id": cert_id,
-            "trust_id": trust_response.data[0]["trust_id"]
+            "cert_id": result["cert_id"],
+            "trust_id": result["trust_id"]
         }
         
     except Exception as e:
@@ -90,17 +71,19 @@ async def register_device(request: DeviceCertRequest):
 async def get_user_devices(username: str):
     """Get all devices and their trust status for a user."""
     try:
-        response = supabase.table("device_certificates")\
-            .select("*, trust_relationships(trust_level, verification_method, last_verified)")\
-            .eq("username", username)\
-            .execute()
+        devices = get_user_certificates(username)
         
-        devices = []
-        for device in response.data:
-            # Convert hex strings to base64 for client
-            device["public_key"] = b64encode(bytes.fromhex(device["public_key"])).decode()
-            device["signature"] = b64encode(bytes.fromhex(device["signature"])).decode()
-            devices.append(device)
+        # Convert bytes to base64 for JSON response
+        for device in devices:
+            device["public_key"] = b64encode(device["public_key"]).decode()
+            device["signature"] = b64encode(device["signature"]).decode()
+            
+            # Get trust status
+            trust_status = get_trust_status(username, device["cert_id"])
+            if trust_status:
+                device["trust_level"] = trust_status["trust_level"]
+                device["verification_method"] = trust_status["verification_method"]
+                device["last_verified"] = trust_status["updated_at"]
             
         return {"devices": devices}
         
@@ -116,41 +99,37 @@ async def update_trust_level(request: TrustDecision):
         if request.trust_level not in valid_levels:
             raise HTTPException(status_code=400, detail="Invalid trust level")
         
-        # Get certificate ID
-        cert_response = supabase.table("device_certificates")\
-            .select("cert_id")\
-            .eq("username", request.username)\
-            .eq("device_id", request.device_id)\
-            .single()\
-            .execute()
-            
-        if not cert_response.data:
+        # Get certificate
+        cert = get_device_certificate(request.username, request.device_id)
+        if not cert:
             raise HTTPException(status_code=404, detail="Device certificate not found")
             
-        cert_id = cert_response.data["cert_id"]
-        
-        # Update trust relationship
-        trust_response = supabase.table("trust_relationships")\
-            .update({
-                "trust_level": request.trust_level,
-                "verification_method": request.verification_method,
-                "last_verified": datetime.now().isoformat()
-            })\
-            .eq("username", request.username)\
-            .eq("trusted_cert_id", cert_id)\
-            .execute()
-            
-        if not trust_response.data:
-            raise HTTPException(status_code=404, detail="Trust relationship not found")
+        # Get trust status
+        trust_status = get_trust_status(request.username, cert["cert_id"])
+        if not trust_status:
+            # Create new trust relationship
+            trust_status = store_trust_relationship(
+                request.username,
+                cert["cert_id"],
+                request.trust_level,
+                request.verification_method
+            )
+        else:
+            # Update existing trust relationship
+            trust_status = update_trust_level(
+                trust_status["trust_id"],
+                request.trust_level,
+                request.verification_method
+            )
             
         # Log verification event
-        supabase.table("verification_events").insert({
-            "trust_id": trust_response.data[0]["trust_id"],
-            "event_type": "verify" if request.trust_level == "verified" else "update",
-            "method": request.verification_method,
-            "success": True,
-            "details": f"Trust level updated to {request.trust_level}"
-        }).execute()
+        store_verification_event(
+            trust_status["trust_id"],
+            "verify" if request.trust_level == "verified" else "update",
+            request.verification_method,
+            True,
+            f"Trust level updated to {request.trust_level}"
+        )
         
         return {"status": "success", "message": "Trust level updated"}
         
@@ -161,16 +140,15 @@ async def update_trust_level(request: TrustDecision):
 async def verify_qr_code(request: QRVerificationRequest):
     """Verify a device using QR code verification."""
     try:
-        # Get certificate and trust info
-        cert_response = supabase.table("device_certificates")\
-            .select("cert_id, trust_relationships(trust_id)")\
-            .eq("username", request.username)\
-            .eq("device_id", request.device_id)\
-            .single()\
-            .execute()
-            
-        if not cert_response.data:
+        # Get certificate
+        cert = get_device_certificate(request.username, request.device_id)
+        if not cert:
             raise HTTPException(status_code=404, detail="Device not found")
+            
+        # Get trust status
+        trust_status = get_trust_status(request.username, cert["cert_id"])
+        if not trust_status:
+            raise HTTPException(status_code=404, detail="Trust relationship not found")
             
         # Verify the QR code (you'll need to implement the actual verification logic)
         # This is just a placeholder that accepts any code
@@ -178,23 +156,20 @@ async def verify_qr_code(request: QRVerificationRequest):
         
         if verification_success:
             # Update trust level
-            trust_response = supabase.table("trust_relationships")\
-                .update({
-                    "trust_level": "verified",
-                    "verification_method": "qr_code",
-                    "last_verified": datetime.now().isoformat()
-                })\
-                .eq("trust_id", cert_response.data["trust_relationships"]["trust_id"])\
-                .execute()
+            trust_status = update_trust_level(
+                trust_status["trust_id"],
+                "verified",
+                "qr_code"
+            )
                 
             # Log verification event
-            supabase.table("verification_events").insert({
-                "trust_id": cert_response.data["trust_relationships"]["trust_id"],
-                "event_type": "verify",
-                "method": "qr_code",
-                "success": True,
-                "details": "QR code verification successful"
-            }).execute()
+            store_verification_event(
+                trust_status["trust_id"],
+                "verify",
+                "qr_code",
+                True,
+                "QR code verification successful"
+            )
             
             return {"status": "success", "message": "QR verification successful"}
         else:
@@ -207,31 +182,24 @@ async def verify_qr_code(request: QRVerificationRequest):
 async def remove_device(username: str, device_id: str):
     """Remove a device and its trust relationships."""
     try:
-        # Get certificate ID first
-        cert_response = supabase.table("device_certificates")\
-            .select("cert_id")\
-            .eq("username", username)\
-            .eq("device_id", device_id)\
-            .single()\
-            .execute()
-            
-        if not cert_response.data:
+        # Get certificate
+        cert = get_device_certificate(username, device_id)
+        if not cert:
             raise HTTPException(status_code=404, detail="Device not found")
             
-        cert_id = cert_response.data["cert_id"]
-        
-        # Delete trust relationships (cascades to verification_events)
-        supabase.table("trust_relationships")\
-            .delete()\
-            .eq("trusted_cert_id", cert_id)\
-            .execute()
+        # Get trust status
+        trust_status = get_trust_status(username, cert["cert_id"])
+        if trust_status:
+            # Log revocation event
+            store_verification_event(
+                trust_status["trust_id"],
+                "revoke",
+                None,
+                True,
+                "Device removed"
+            )
             
-        # Delete the certificate
-        supabase.table("device_certificates")\
-            .delete()\
-            .eq("cert_id", cert_id)\
-            .execute()
-            
+        # The actual deletion is handled by database CASCADE
         return {"status": "success", "message": "Device removed"}
         
     except Exception as e:

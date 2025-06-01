@@ -16,6 +16,17 @@ branch_labels = None
 depends_on = None
 
 def upgrade() -> None:
+    # Users table
+    op.create_table(
+        'users',
+        sa.Column('username', sa.String(50), primary_key=True),
+        sa.Column('auth_salt', sa.String(64), nullable=False),
+        sa.Column('enc_salt', sa.String(64), nullable=False),
+        sa.Column('auth_key', sa.String(128), nullable=False),
+        sa.Column('encrypted_mek', sa.String(256), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False)
+    )
+
     # Device Certificates table
     op.create_table(
         'device_certificates',
@@ -64,4 +75,5 @@ def downgrade() -> None:
     # Drop in reverse order due to foreign key dependencies
     op.drop_table('verification_events')
     op.drop_table('trust_relationships')
-    op.drop_table('device_certificates') 
+    op.drop_table('device_certificates')
+    op.drop_table('users') 

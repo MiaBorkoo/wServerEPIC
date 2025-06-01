@@ -7,6 +7,7 @@ from alembic import context
 
 import os
 from dotenv import load_dotenv
+from database import Base  # Import our SQLAlchemy models
 
 # Load environment variables
 load_dotenv()
@@ -30,9 +31,7 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-target_metadata = None
+target_metadata = Base.metadata  # Use our SQLAlchemy models
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
