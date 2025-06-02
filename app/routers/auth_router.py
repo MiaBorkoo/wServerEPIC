@@ -82,21 +82,22 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
         )
 
     user = crud.get_user_by_username(db, data.username)
-    if not user or not crud.verify_user_auth(db, data.username, data.auth_key):  # FIXED: Pass db session
+    if not user or not crud.verify_user_auth(db, data.username, data.auth_key):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
-    #TOTP verification
+    if rate_limiter.is_rate_limited(data.username, "totp"):
+        remaining = rate_limiter.get_remaining_attempts(data.username, "totp")
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "Too many TOTP attempts",
+                "reset_in": remaining["reset_in"],
+                "retry_after": remaining["reset_in"]
+            }
+        )
+    
+    # TOTP verification
     if not verify_totp(db, data.username, data.otp):
-        if rate_limiter.is_rate_limited(data.username, "totp"):
-            remaining = rate_limiter.get_remaining_attempts(data.username, "totp")
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "error": "Too many TOTP attempts",
-                    "reset_in": remaining["reset_in"],
-                    "retry_after": remaining["reset_in"]
-                }
-            )
         raise HTTPException(401, "Invalid or replayed TOTP")
     
     # Create authenticated session
@@ -105,14 +106,13 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
         {"status": "authenticated", "user_id": str(user.user_id)}
     )
     
-    # 3) return encrypted MEK (same payload /totp used to send)
+    # Get encrypted MEK
     mek_bytes = crud.get_encrypted_mek(db, data.username)
     if not mek_bytes:
         raise HTTPException(500, "Encrypted MEK not found")
     encrypted_mek = base64.b64encode(mek_bytes).decode()
-
     
-    return {"session_token": session_token, "encrypted_mek": encrypted_mek} # Placeholder
+    return {"session_token": session_token, "encrypted_mek": encrypted_mek}
 
 # @router.post("/totp")
 # def verify_totp_and_return_mek(data: TOTPRequest, db: Session = Depends(get_db)):  # ADDED: Database session dependency
