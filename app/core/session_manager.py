@@ -24,7 +24,7 @@ class SessionManager:
         user_sessions = self.get_user_sessions(username)
         if len(user_sessions) >= self.max_sessions_per_user:
             # Remove oldest session
-            oldest_session = min(user_sessions.items(), key=lambda x: x[1]["created_at"])[0]
+            oldest_session = min(user_sessions.items(), key=lambda x: datetime.fromisoformat(x[1]["created_at"]))[0]
             self.delete_session(oldest_session)
 
         # Store session data
