@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from datetime import timedelta
 from typing import List, Dict, Any
+from uuid import UUID
 import base64
 
 from app.schemas.tofu import DeviceCertRequest, VerificationRequest
@@ -39,7 +40,7 @@ def register_device(request: DeviceCertRequest, db: Session = Depends(get_db)):
     """Register a new device certificate for TOFU"""
     try:
         # Verify user exists
-        user = crud.get_user_by_username(db, request.username)
+        user = crud.get_user_by_id(db, request.user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
@@ -48,14 +49,14 @@ def register_device(request: DeviceCertRequest, db: Session = Depends(get_db)):
         signature_bytes = base64.b64decode(request.signature)
 
         # Verify signature
-        message = f"{request.username}:{request.device_id}:{request.public_key}:{request.expires_at.isoformat()}".encode()
+        message = f"{request.user_id}:{request.device_id}:{request.public_key}:{request.expires_at.isoformat()}".encode()
         if not _verify_signature(public_key_bytes, message, signature_bytes):
             raise HTTPException(status_code=400, detail="Invalid signature")
 
         # Store device certificate
         cert_data = crud.create_device_certificate(
             db=db,
-            username=request.username,
+            user_id=request.user_id,
             device_id=request.device_id,
             public_key=public_key_bytes,
             expires_at=request.expires_at,
@@ -65,7 +66,7 @@ def register_device(request: DeviceCertRequest, db: Session = Depends(get_db)):
         # Create initial trust relationship
         trust_data = crud.create_trust_relationship(
             db=db,
-            username=request.username,
+            user_id=request.user_id,
             cert_id=cert_data["cert_id"],
             trust_level="untrusted"
         )
@@ -82,17 +83,17 @@ def register_device(request: DeviceCertRequest, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/devices/{username}")
-def get_user_devices(username: str, db: Session = Depends(get_db)):
+@router.get("/devices/{user_id}")
+def get_user_devices(user_id: UUID, db: Session = Depends(get_db)):
     """Get all device certificates for a user"""
     try:
         # Verify user exists
-        user = crud.get_user_by_username(db, username)
+        user = crud.get_user_by_id(db, user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
         # Get certificates
-        devices = crud.get_user_certificates(db, username)
+        devices = crud.get_user_certificates(db, user_id)
 
         # Prepare response with base64-encoded fields
         response_devices = []
@@ -116,23 +117,23 @@ def verify_device(request: VerificationRequest, db: Session = Depends(get_db)):
     """Verify a device certificate with a signed verification code"""
     try:
         # Verify user exists
-        user = crud.get_user_by_username(db, request.username)
+        user = crud.get_user_by_id(db, request.user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
         # Get device certificate
-        device = crud.get_device_certificate(db, request.username, request.device_id)
+        device = crud.get_device_certificate(db, request.user_id, request.device_id)
         if not device:
             raise HTTPException(status_code=404, detail="Device not found")
 
         # Verify signature
-        message = f"{request.username}:{request.device_id}:{request.verification_code}:{request.timestamp.isoformat()}".encode()
+        message = f"{request.user_id}:{request.device_id}:{request.verification_code}:{request.timestamp.isoformat()}".encode()
         signature = base64.b64decode(request.signature)
         if not _verify_signature(device["public_key"], message, signature):
             raise HTTPException(status_code=400, detail="Invalid signature")
 
         # Get trust relationship
-        trust_status = crud.get_trust_status(db, request.username, device["cert_id"])
+        trust_status = crud.get_trust_status(db, request.user_id, device["cert_id"])
         if not trust_status:
             raise HTTPException(status_code=404, detail="Trust relationship not found")
 
@@ -167,17 +168,11 @@ def verify_device(request: VerificationRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/verification-history/{trust_id}")
-def get_verification_history(trust_id: str, db: Session = Depends(get_db)):
+def get_verification_history(trust_id: UUID, db: Session = Depends(get_db)):
     """Get verification history for a trust relationship"""
     try:
-        # Validate UUID
-        try:
-            trust_uuid = UUID(trust_id)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid trust ID format")
-
         # Get verification events
-        events = crud.get_verification_history(db, trust_uuid)
+        events = crud.get_verification_history(db, trust_id)
 
         # Prepare response
         response_events = [

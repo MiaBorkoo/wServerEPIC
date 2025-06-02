@@ -5,7 +5,7 @@ from typing import Optional
 import base64
 
 class DeviceCertRequest(BaseModel):
-    username: str
+    user_id: UUID
     device_id: str
     public_key: str  # Base64-encoded public key
     signature: str   # Base64-encoded signature
@@ -36,7 +36,7 @@ class DeviceCertRequest(BaseModel):
             raise ValueError("Invalid base64 encoding")
 
 class VerificationRequest(BaseModel):
-    username: str
+    user_id: UUID
     device_id: str
     verification_code: str
     timestamp: datetime

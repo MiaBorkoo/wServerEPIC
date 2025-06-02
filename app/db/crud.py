@@ -341,7 +341,7 @@ def verify_audit_chain_integrity(db: Session, file_id: UUID) -> bool:
 
 def create_device_certificate(
     db: Session,
-    username: str,
+    user_id: UUID,
     device_id: str,
     public_key: bytes,
     expires_at: datetime,
@@ -349,7 +349,7 @@ def create_device_certificate(
 ) -> Dict[str, Any]:
     """Create a new device certificate for TOFU"""
     cert = DeviceCertificate(
-        username=username,
+        user_id=user_id,
         device_id=device_id,
         public_key=public_key,
         expires_at=expires_at,
@@ -361,7 +361,7 @@ def create_device_certificate(
     db.refresh(cert)
     return {
         "cert_id": cert.cert_id,
-        "username": cert.username,
+        "user_id": cert.user_id,
         "device_id": cert.device_id,
         "public_key": cert.public_key,
         "expires_at": cert.expires_at,
@@ -371,13 +371,13 @@ def create_device_certificate(
 
 def get_device_certificate(
     db: Session,
-    username: str,
+    user_id: UUID,
     device_id: str
 ) -> Optional[Dict[str, Any]]:
-    """Get a device certificate by username and device ID"""
+    """Get a device certificate by user_id and device ID"""
     cert = db.query(DeviceCertificate).filter(
         and_(
-            DeviceCertificate.username == username,
+            DeviceCertificate.user_id == user_id,
             DeviceCertificate.device_id == device_id
         )
     ).first()
@@ -385,7 +385,7 @@ def get_device_certificate(
         return None
     return {
         "cert_id": cert.cert_id,
-        "username": cert.username,
+        "user_id": cert.user_id,
         "device_id": cert.device_id,
         "public_key": cert.public_key,
         "expires_at": cert.expires_at,
@@ -395,15 +395,15 @@ def get_device_certificate(
 
 def get_user_certificates(
     db: Session,
-    username: str
+    user_id: UUID
 ) -> List[Dict[str, Any]]:
     """Get all device certificates for a user"""
     certs = db.query(DeviceCertificate).filter(
-        DeviceCertificate.username == username
+        DeviceCertificate.user_id == user_id
     ).all()
     return [{
         "cert_id": cert.cert_id,
-        "username": cert.username,
+        "user_id": cert.user_id,
         "device_id": cert.device_id,
         "public_key": cert.public_key,
         "expires_at": cert.expires_at,
@@ -418,14 +418,14 @@ def get_user_certificates(
 
 def create_trust_relationship(
     db: Session,
-    username: str,
+    user_id: UUID,
     cert_id: UUID,
     trust_level: str,
     verification_method: Optional[str] = None
 ) -> Dict[str, Any]:
     """Create a new trust relationship for TOFU"""
     trust = TrustRelationship(
-        username=username,
+        user_id=user_id,
         trusted_cert_id=cert_id,
         trust_level=trust_level,
         verification_method=verification_method,
@@ -437,7 +437,7 @@ def create_trust_relationship(
     db.refresh(trust)
     return {
         "trust_id": trust.trust_id,
-        "username": trust.username,
+        "user_id": trust.user_id,
         "trusted_cert_id": trust.trusted_cert_id,
         "trust_level": trust.trust_level,
         "verification_method": trust.verification_method,
@@ -465,7 +465,7 @@ def update_trust_level(
     db.refresh(trust)
     return {
         "trust_id": trust.trust_id,
-        "username": trust.username,
+        "user_id": trust.user_id,
         "trusted_cert_id": trust.trusted_cert_id,
         "trust_level": trust.trust_level,
         "verification_method": trust.verification_method,
@@ -505,13 +505,13 @@ def create_verification_event(
 
 def get_trust_status(
     db: Session,
-    username: str,
+    user_id: UUID,
     cert_id: UUID
 ) -> Optional[Dict[str, Any]]:
     """Get the trust status for a specific certificate"""
     trust = db.query(TrustRelationship).filter(
         and_(
-            TrustRelationship.username == username,
+            TrustRelationship.user_id == user_id,
             TrustRelationship.trusted_cert_id == cert_id
         )
     ).first()
@@ -519,7 +519,7 @@ def get_trust_status(
         return None
     return {
         "trust_id": trust.trust_id,
-        "username": trust.username,
+        "user_id": trust.user_id,
         "trusted_cert_id": trust.trusted_cert_id,
         "trust_level": trust.trust_level,
         "verification_method": trust.verification_method,
