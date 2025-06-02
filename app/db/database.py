@@ -1,37 +1,39 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
+from sqlalchemy.pool import StaticPool
 import os
-import logging
+from dotenv import load_dotenv
 
-logger = logging.getLogger(__name__)
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-if not DATABASE_URL:
-    logger.error("DATABASE_URL not set")
-    raise ValueError("DATABASE_URL environment variable is not set")
+# Database URL from environment
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/epic_db")
 
-try:
+# For SQLite, we need special configuration
+if DATABASE_URL.startswith("sqlite"):
+    # SQLite specific configuration
+    engine = create_engine(
+        DATABASE_URL,
+        poolclass=StaticPool,
+        connect_args={"check_same_thread": False},
+        echo=os.getenv("SQL_DEBUG", "false").lower() == "true"
+    )
+else:
+    # PostgreSQL configuration
     engine = create_engine(
         DATABASE_URL,
         pool_pre_ping=True,
         pool_recycle=300,
-        echo=os.getenv("SQL_DEBUG", "false").lower() == "true",
+        echo=os.getenv("SQL_DEBUG", "false").lower() == "true"
     )
-except Exception as e:
-    logger.error(f"Failed to create database engine: {str(e)}")
-    raise
 
+# Session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# Dependency for FastAPI
 def get_db():
     db = SessionLocal()
     try:
         yield db
-    except Exception as e:
-        logger.error(f"Database session error: {str(e)}")
-        db.rollback()
-        raise
     finally:
-        db.close()
+        db.close() 
