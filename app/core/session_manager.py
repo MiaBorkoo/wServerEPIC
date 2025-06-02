@@ -3,12 +3,13 @@ import redis
 import json
 from typing import Optional, Dict, Any
 from secrets import token_urlsafe
+from app.core.config import REDIS_URL, SESSION_EXPIRY, MAX_SESSIONS_PER_USER
 
 class SessionManager:
-    def __init__(self, redis_url: str = "redis://localhost:6379/0"):
-        self.redis = redis.from_url(redis_url)
-        self.session_expiry = timedelta(hours=1)  # Default 1 hour expiry
-        self.max_sessions_per_user = 5  # Maximum concurrent sessions per user
+    def __init__(self):
+        self.redis = redis.from_url(REDIS_URL)
+        self.session_expiry = SESSION_EXPIRY
+        self.max_sessions_per_user = MAX_SESSIONS_PER_USER
 
     def create_session(self, username: str, data: Dict[str, Any] = None) -> str:
         """Create a new session for a user"""
