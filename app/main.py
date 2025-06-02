@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 from app.core.config import PROJECT_NAME, ALLOW_ORIGINS, PORT, SSL_KEYFILE, SSL_CERTFILE
-from app.routers import auth_router, files_router, user_router
+from app.routers import auth_router, files_router, user_router, health_router
 
 app = FastAPI(title=PROJECT_NAME, description="Server for CS4455 Epic Project")
 
@@ -20,6 +20,7 @@ app.add_middleware(
 app.include_router(auth_router.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(files_router.router, prefix="/api/files", tags=["Files"])
 app.include_router(user_router.router, prefix="/api/user", tags=["User"])
+app.include_router(health_router.router, prefix="/api/health", tags=["Health"])
 
 
 @app.get("/")

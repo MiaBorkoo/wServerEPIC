@@ -5,8 +5,10 @@ __pycache__/
 .Python
 env/
 venv/
+.venv/
 key.pem
 cert.pem
 *.db
 .env
 files/
+.DS_Store
