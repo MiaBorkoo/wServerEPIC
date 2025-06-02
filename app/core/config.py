@@ -14,5 +14,10 @@ PORT: int = int(os.getenv("PORT", 8000))
 SSL_KEYFILE: str = os.getenv("SSL_KEYFILE", "key.pem") # TODO: Consider if these defaults are secure for all environments
 SSL_CERTFILE: str = os.getenv("SSL_CERTFILE", "cert.pem") # TODO: Consider if these defaults are secure for all environments
 
+# Session settings
+REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+SESSION_EXPIRY: timedelta = timedelta(minutes=10)
+MAX_SESSIONS_PER_USER: int = 2
+
 # CORS settings
 ALLOW_ORIGINS = ["*"] # TODO: Restrict this in production 
