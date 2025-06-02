@@ -8,7 +8,7 @@ import hashlib
 import hmac
 import os
 
-from app.db.models import User, File, Share, FileAuditLog
+from app.db.models import User, File, Share, FileAuditLog, DeviceCertificate, TrustRelationship, VerificationEvent
 from app.core.security import compute_hmac, verify_hmac, hash_ip_address
 
 # User CRUD operations
@@ -155,7 +155,6 @@ def get_user_shared_files(db: Session, user_id: UUID, limit: int = 100, offset: 
         )
     ).order_by(Share.granted_at.desc()).limit(limit).offset(offset).all()
 
-# TODO: Remove if not needed, should be replaced by hard_delete_file, right?
 def soft_delete_file(db: Session, file_id: UUID, user_id: UUID) -> bool:
     """Soft delete a file (only owner can delete)"""
     result = db.query(File).filter(
@@ -336,4 +335,212 @@ def verify_audit_chain_integrity(db: Session, file_id: UUID) -> bool:
             return False
         previous_hmac = log.log_entry_hmac
     
-    return True 
+    return True
+
+# TOFU CRUD operations
+
+def create_device_certificate(
+    db: Session,
+    username: str,
+    device_id: str,
+    public_key: bytes,
+    expires_at: datetime,
+    signature: bytes
+) -> Dict[str, Any]:
+    """Create a new device certificate for TOFU"""
+    cert = DeviceCertificate(
+        username=username,
+        device_id=device_id,
+        public_key=public_key,
+        expires_at=expires_at,
+        signature=signature,
+        created_at=func.now()
+    )
+    db.add(cert)
+    db.commit()
+    db.refresh(cert)
+    return {
+        "cert_id": cert.cert_id,
+        "username": cert.username,
+        "device_id": cert.device_id,
+        "public_key": cert.public_key,
+        "expires_at": cert.expires_at,
+        "signature": cert.signature,
+        "created_at": cert.created_at
+    }
+
+def get_device_certificate(
+    db: Session,
+    username: str,
+    device_id: str
+) -> Optional[Dict[str, Any]]:
+    """Get a device certificate by username and device ID"""
+    cert = db.query(DeviceCertificate).filter(
+        and_(
+            DeviceCertificate.username == username,
+            DeviceCertificate.device_id == device_id
+        )
+    ).first()
+    if not cert:
+        return None
+    return {
+        "cert_id": cert.cert_id,
+        "username": cert.username,
+        "device_id": cert.device_id,
+        "public_key": cert.public_key,
+        "expires_at": cert.expires_at,
+        "signature": cert.signature,
+        "created_at": cert.created_at
+    }
+
+def get_user_certificates(
+    db: Session,
+    username: str
+) -> List[Dict[str, Any]]:
+    """Get all device certificates for a user"""
+    certs = db.query(DeviceCertificate).filter(
+        DeviceCertificate.username == username
+    ).all()
+    return [{
+        "cert_id": cert.cert_id,
+        "username": cert.username,
+        "device_id": cert.device_id,
+        "public_key": cert.public_key,
+        "expires_at": cert.expires_at,
+        "signature": cert.signature,
+        "created_at": cert.created_at,
+        "trust_relationships": [{
+            "trust_level": tr.trust_level,
+            "verification_method": tr.verification_method,
+            "last_verified": tr.updated_at
+        } for tr in cert.trust_relationships]
+    } for cert in certs]
+
+def create_trust_relationship(
+    db: Session,
+    username: str,
+    cert_id: UUID,
+    trust_level: str,
+    verification_method: Optional[str] = None
+) -> Dict[str, Any]:
+    """Create a new trust relationship for TOFU"""
+    trust = TrustRelationship(
+        username=username,
+        trusted_cert_id=cert_id,
+        trust_level=trust_level,
+        verification_method=verification_method,
+        created_at=func.now(),
+        updated_at=func.now()
+    )
+    db.add(trust)
+    db.commit()
+    db.refresh(trust)
+    return {
+        "trust_id": trust.trust_id,
+        "username": trust.username,
+        "trusted_cert_id": trust.trusted_cert_id,
+        "trust_level": trust.trust_level,
+        "verification_method": trust.verification_method,
+        "created_at": trust.created_at,
+        "updated_at": trust.updated_at
+    }
+
+def update_trust_level(
+    db: Session,
+    trust_id: UUID,
+    trust_level: str,
+    verification_method: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """Update the trust level of an existing trust relationship"""
+    trust = db.query(TrustRelationship).filter(
+        TrustRelationship.trust_id == trust_id
+    ).first()
+    if not trust:
+        return None
+    trust.trust_level = trust_level
+    if verification_method:
+        trust.verification_method = verification_method
+    trust.updated_at = func.now()
+    db.commit()
+    db.refresh(trust)
+    return {
+        "trust_id": trust.trust_id,
+        "username": trust.username,
+        "trusted_cert_id": trust.trusted_cert_id,
+        "trust_level": trust.trust_level,
+        "verification_method": trust.verification_method,
+        "created_at": trust.created_at,
+        "updated_at": trust.updated_at
+    }
+
+def create_verification_event(
+    db: Session,
+    trust_id: UUID,
+    event_type: str,
+    method: Optional[str],
+    success: bool,
+    details: Optional[str] = None
+) -> Dict[str, Any]:
+    """Create a new verification event for a trust relationship"""
+    event = VerificationEvent(
+        trust_id=trust_id,
+        event_type=event_type,
+        method=method,
+        success=success,
+        details=details,
+        created_at=func.now()
+    )
+    db.add(event)
+    db.commit()
+    db.refresh(event)
+    return {
+        "event_id": event.event_id,
+        "trust_id": event.trust_id,
+        "event_type": event.event_type,
+        "method": event.method,
+        "success": event.success,
+        "details": event.details,
+        "created_at": event.created_at
+    }
+
+def get_trust_status(
+    db: Session,
+    username: str,
+    cert_id: UUID
+) -> Optional[Dict[str, Any]]:
+    """Get the trust status for a specific certificate"""
+    trust = db.query(TrustRelationship).filter(
+        and_(
+            TrustRelationship.username == username,
+            TrustRelationship.trusted_cert_id == cert_id
+        )
+    ).first()
+    if not trust:
+        return None
+    return {
+        "trust_id": trust.trust_id,
+        "username": trust.username,
+        "trusted_cert_id": trust.trusted_cert_id,
+        "trust_level": trust.trust_level,
+        "verification_method": trust.verification_method,
+        "created_at": trust.created_at,
+        "updated_at": trust.updated_at
+    }
+
+def get_verification_history(
+    db: Session,
+    trust_id: UUID
+) -> List[Dict[str, Any]]:
+    """Get the verification history for a trust relationship"""
+    events = db.query(VerificationEvent).filter(
+        VerificationEvent.trust_id == trust_id
+    ).order_by(VerificationEvent.created_at.desc()).all()
+    return [{
+        "event_id": event.event_id,
+        "trust_id": event.trust_id,
+        "event_type": event.event_type,
+        "method": event.method,
+        "success": event.success,
+        "details": event.details,
+        "created_at": event.created_at
+    } for event in events]
