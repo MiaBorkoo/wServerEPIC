@@ -1,5 +1,5 @@
 import pyotp
-from database import get_user_totp_secret, store_user_totp_secret
+from database import get_user_totp_secret
 
 def generate_totp_secret() -> str:
     """Generate a new TOTP secret key"""
