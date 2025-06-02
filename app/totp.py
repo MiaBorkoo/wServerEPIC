@@ -1,16 +1,22 @@
 import pyotp
-import logging
+from database import get_user_totp_secret
 
-logger = logging.getLogger(__name__)
+def generate_totp_secret() -> str:
+    """Generate a new TOTP secret key"""
+    return pyotp.random_base32()
 
 def verify_totp(username: str, totp_code: str) -> bool:
-    try:
-        # Placeholder: In production, retrieve totp_secret from database
-        totp_secret = "JBSWY3DPEHPK3PXP"  # Example base32 secret
-        totp = pyotp.TOTP(totp_secret)
-        result = totp.verify(totp_code)
-        logger.info(f"TOTP verification for {username}: {'success' if result else 'failed'}")
-        return result
-    except Exception as e:
-        logger.error(f"TOTP verification error for {username}: {str(e)}")
+    """Verify a TOTP code for a user"""
+    secret = get_user_totp_secret(username)
+    if not secret:
         return False
+    
+    totp = pyotp.TOTP(secret)
+    return totp.verify(totp_code)
+
+def get_totp_uri(username: str, secret: str) -> str:
+    """Get the TOTP URI for QR code generation"""
+    return pyotp.totp.TOTP(secret).provisioning_uri(
+        name=username,
+        issuer_name="EPIC Secure File Share"
+    )

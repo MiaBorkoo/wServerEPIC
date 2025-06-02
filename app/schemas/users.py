@@ -22,6 +22,10 @@ class ChangePasswordRequest(BaseModel):
     new_auth_key: str
     new_encrypted_mek: str
     totp_code: str
+    session_token: str
+
+class LogoutRequest(BaseModel):
+    session_token: str
 
 class UserSaltsResponse(BaseModel):
     auth_salt: str
