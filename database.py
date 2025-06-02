@@ -141,6 +141,16 @@ class SharedFile(Base):
         Index('idx_shared_files_expires', 'expires_at'),
     )
 
+class UserTOTP(Base):
+    __tablename__ = "user_totp"
+    
+    username = Column(String(50), ForeignKey("users.username", ondelete="CASCADE"), primary_key=True)
+    totp_secret = Column(String(64), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
+    # Relationship back to user
+    user = relationship("User", backref="totp")
+
 # Helper Functions
 def derive_mek_wrapper(client_key: bytes, salt: bytes) -> bytes:
     hkdf = HKDF(
@@ -579,5 +589,61 @@ def get_file_metadata(file_id: str, user_id: str) -> Optional[dict]:
             "integrity_hash": file.integrity_hash,
             "created_at": file.created_at
         }
+    finally:
+        db.close()
+
+# TOTP functions
+def store_user_totp_secret(username: str, totp_secret: str) -> bool:
+    """Store a user's TOTP secret"""
+    db = SessionLocal()
+    try:
+        totp = UserTOTP(username=username, totp_secret=totp_secret)
+        db.add(totp)
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        raise Exception(f"Failed to store TOTP secret: {str(e)}")
+    finally:
+        db.close()
+
+def get_user_totp_secret(username: str) -> Optional[str]:
+    """Get a user's TOTP secret"""
+    db = SessionLocal()
+    try:
+        totp = db.query(UserTOTP).filter(UserTOTP.username == username).first()
+        return totp.totp_secret if totp else None
+    finally:
+        db.close()
+
+def update_user_totp_secret(username: str, new_totp_secret: str) -> bool:
+    """Update a user's TOTP secret"""
+    db = SessionLocal()
+    try:
+        totp = db.query(UserTOTP).filter(UserTOTP.username == username).first()
+        if not totp:
+            return False
+        totp.totp_secret = new_totp_secret
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        raise Exception(f"Failed to update TOTP secret: {str(e)}")
+    finally:
+        db.close()
+
+def delete_user_totp_secret(username: str) -> bool:
+    """Delete a user's TOTP secret"""
+    db = SessionLocal()
+    try:
+        totp = db.query(UserTOTP).filter(UserTOTP.username == username).first()
+        if not totp:
+            return False
+        db.delete(totp)
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        raise Exception(f"Failed to delete TOTP secret: {str(e)}")
     finally:
         db.close()
