@@ -72,10 +72,13 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def create_refresh_token(data: dict):
+def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire, "type": "refresh"})
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
@@ -139,6 +142,15 @@ def decrypt_totp_secret(encrypted_secret: bytes) -> str:
     if isinstance(encrypted_secret, str):
         encrypted_secret = encrypted_secret.encode()
     return fernet.decrypt(encrypted_secret).decode()
+
+# Alias for backwards compatibility
+def encrypt_totp_seed(secret: str) -> bytes:
+    """Encrypt TOTP seed using Fernet (AES-GCM + HMAC) - alias for encrypt_totp_secret"""
+    return encrypt_totp_secret(secret)
+
+def decrypt_totp_seed(encrypted_secret: bytes) -> str:
+    """Decrypt TOTP seed - alias for decrypt_totp_secret"""
+    return decrypt_totp_secret(encrypted_secret)
 
 def check_time_sync():
     """Check if server time is synchronized with NTP servers"""
