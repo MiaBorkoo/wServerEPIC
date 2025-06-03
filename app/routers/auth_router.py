@@ -17,7 +17,7 @@ router = APIRouter()
 
 # Initialize Redis-based services
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-session_manager = SessionManager(redis_url)
+session_manager = SessionManager()
 rate_limiter = RateLimiter(redis_url)
 
 @router.post("/register")

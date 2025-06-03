@@ -14,7 +14,7 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     username: str
     auth_key: str
-    otp: str = Field(regex=r"^[0-9]{6}$") #removed TOTPRequest and added otp field
+    otp: str = Field(pattern=r"^[0-9]{6}$")
 
 class ChangePasswordRequest(BaseModel):
     username: str
