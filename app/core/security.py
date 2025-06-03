@@ -14,6 +14,8 @@ from cryptography.fernet import Fernet
 import ntplib
 import time
 import logging
+import requests
+import json
 
 from app.db.database import get_db
 from app.db import crud
@@ -160,3 +162,50 @@ def encrypt_totp_seed(seed: str) -> bytes:
 def decrypt_totp_seed(encrypted_seed: bytes) -> str:
     """Decrypt TOTP seed from database"""
     return fernet.decrypt(encrypted_seed).decode()
+
+# Replace NTP with HTTPS time sources for better security
+SECURE_TIME_SOURCES = [
+    "https://worldtimeapi.org/api/timezone/Etc/UTC",
+    "https://timeapi.io/api/Time/current/zone?timeZone=UTC",
+    "https://worldclockapi.com/api/json/utc/now"
+]
+
+def get_synchronized_time() -> float:
+    """
+    Get synchronized time from HTTPS time services.
+    Falls back to system time if all services are unavailable.
+    
+    Returns:
+        float: Unix timestamp synchronized with external time servers
+    """
+    for time_service in SECURE_TIME_SOURCES:
+        try:
+            response = requests.get(time_service, timeout=5, verify=True)
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            # Parse time based on service format
+            if "worldtimeapi.org" in time_service:
+                time_str = data.get("datetime")
+                if time_str:
+                    dt = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+                    return dt.timestamp()
+            elif "timeapi.io" in time_service:
+                time_str = data.get("dateTime")
+                if time_str:
+                    dt = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+                    return dt.timestamp()
+            elif "worldclockapi.com" in time_service:
+                time_str = data.get("currentDateTime")
+                if time_str:
+                    dt = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+                    return dt.timestamp()
+                    
+        except Exception as e:
+            logging.debug(f"Failed to sync with time service {time_service}: {e}")
+            continue
+    
+    # Fall back to system time if all services fail
+    logging.warning("All secure time services failed, using system time for TOTP validation")
+    return time.time()
