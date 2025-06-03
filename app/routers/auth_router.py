@@ -125,12 +125,12 @@ async def change_password(data: ChangePasswordRequest, db: Session = Depends(get
     if not crud.verify_user_auth(db, data.username, data.old_auth_key):  # FIXED: Pass db session
         raise handle_authentication_error(Exception("Invalid old credentials"))
 
-    if not verify_totp(db, data.username, data.totp_code): # Placeholder
+    if not verify_totp(db, data.username, data.totp_code):
         raise handle_authentication_error(Exception("Invalid TOTP"))
 
     try:
-        # TODO: Invalidate old sessions/tokens after password change.
-        crud.update_user_password(db, data.username, data.new_auth_key, data.new_encrypted_mek)  # FIXED: Pass db session
+        # Invalidate old sessions/tokens after password change
+        crud.update_user_password(db, data.username, data.new_auth_key, data.new_encrypted_mek)
         
         # Invalidate all existing sessions for the user
         session_manager.invalidate_user_sessions(data.username)
@@ -141,6 +141,6 @@ async def change_password(data: ChangePasswordRequest, db: Session = Depends(get
             {"status": "authenticated", "totp_verified": True}
         )
         
-        return {"status": "success", "session": new_session_token} # Placeholder: new session token
+        return {"status": "success", "session": new_session_token}
     except Exception as e:
         raise handle_database_error(e) 
