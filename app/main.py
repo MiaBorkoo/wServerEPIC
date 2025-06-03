@@ -1,12 +1,9 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 import uvicorn
-import os
-import ssl
 
-from app.core.config import PROJECT_NAME, ALLOW_ORIGINS, PORT, ssl_config, ENVIRONMENT
+from app.core.config import PROJECT_NAME, ALLOW_ORIGINS, ENVIRONMENT
 from app.routers import auth_router, files_router, user_router  # , health_router
 from app.core.rate_limiter import RateLimiter
 
@@ -21,13 +18,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Security middleware for production - Automatically redirects HTTP to HTTPS and validates request host headers
-if ENVIRONMENT in ["production", "staging"]:
-    app.add_middleware(HTTPSRedirectMiddleware)  # Forces all HTTP requests to redirect to HTTPS
-    app.add_middleware(
-        TrustedHostMiddleware,  # Blocks requests with malicious Host headers (prevents host header injection attacks)
-        allowed_hosts=["yourdomain.com", "*.yourdomain.com"]
-    )
+# Security middleware for production - validates request host headers
+# if ENVIRONMENT in ["production", "staging"]:
+#     app.add_middleware(
+#         TrustedHostMiddleware,  # Blocks requests with malicious Host headers
+#         allowed_hosts=["chrisplusplus.gobbler.info", "*.gobbler.info"]
+#     )
 
 # Security headers middleware - Adds protective HTTP headers to every response to prevent common web attacks
 @app.middleware("http")
@@ -36,7 +32,7 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"  # Prevents MIME sniffing attacks
     response.headers["X-Frame-Options"] = "DENY"  # Prevents clickjacking by blocking iframe embedding
     response.headers["X-XSS-Protection"] = "1; mode=block"  # Enables browser XSS filtering
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"  # Forces HTTPS for 1 year
+    # Don't set HSTS - Apache handles this
     response.headers["Content-Security-Policy"] = "default-src 'self'"  # Only allows resources from same domain
     return response
 
@@ -55,23 +51,11 @@ async def root():
 # This is for when you run the app directly using `python app/main.py`
 # For production, you'd typically use `uvicorn app.main:app --reload`
 if __name__ == "__main__":
-    # Get SSL context
-    ssl_context = ssl_config.get_ssl_context()
-    
     uvicorn_config = {
         "app": "app.main:app",
-        "host": "0.0.0.0",
-        "port": PORT,
+        "host": "127.0.0.1",  # Internal only - Apache handles external access
+        "port": 3010,         # Your assigned port
         "reload": ENVIRONMENT == "development"
     }
-    
-    # Add SSL configuration if available
-    if ssl_context:
-        uvicorn_config.update({
-            "ssl_keyfile": ssl_config.ssl_keyfile,
-            "ssl_certfile": ssl_config.ssl_certfile,
-            "ssl_version": ssl.PROTOCOL_TLS_SERVER,
-            "ssl_cert_reqs": ssl.CERT_NONE,  # Adjust based on your needs
-        })
     
     uvicorn.run(**uvicorn_config) 
