@@ -19,11 +19,11 @@ app.add_middleware(
 )
 
 # Security middleware for production - validates request host headers
-# if ENVIRONMENT in ["production", "staging"]:
-#     app.add_middleware(
-#         TrustedHostMiddleware,  # Blocks requests with malicious Host headers
-#         allowed_hosts=["chrisplusplus.gobbler.info", "*.gobbler.info"]
-#     )
+if ENVIRONMENT in ["production", "staging"]:
+    app.add_middleware(
+        TrustedHostMiddleware,  # Blocks requests with malicious Host headers
+        allowed_hosts=["chrisplusplus.gobbler.info", "*.gobbler.info"]
+    )
 
 # Security headers middleware - Adds protective HTTP headers to every response to prevent common web attacks
 @app.middleware("http")

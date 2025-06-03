@@ -7,11 +7,12 @@ import os
 
 from app.schemas.users import RegisterRequest, LoginRequest, ChangePasswordRequest, LogoutRequest
 from app.db import crud # Assuming crud.py contains all db operations
-from app.db.database import get_db  # ADDED: Missing database dependency
+from app.db.database import get_db  
 from app.services.totp_service import new_secret, provisioning_uri, verify_totp 
 from app.core.security import create_access_token, encrypt_totp_seed, decrypt_totp_seed  # ADDED: For proper JWT token generation
 from app.core.rate_limiter import RateLimiter
 from app.core.session_manager import SessionManager
+from app.core.exceptions import handle_database_error, handle_authentication_error, handle_validation_error, SecureHTTPException
 
 router = APIRouter()
 
@@ -26,20 +27,21 @@ def register_user(data: RegisterRequest, request: Request, db: Session = Depends
     client_ip = request.client.host
     if rate_limiter.is_rate_limited(client_ip, "register"):
         remaining = rate_limiter.get_remaining_attempts(client_ip, "register")
-        raise HTTPException(
+        raise SecureHTTPException(
             status_code=429,
-            detail={
-                "error": "Too many registration attempts",
-                "reset_in": remaining["reset_in"],
-                "retry_after": remaining["reset_in"]
-            }
+            detail="Too many registration attempts. Please try again later.",
+            internal_detail=f"Rate limit exceeded for IP {client_ip}"
         )
 
     try:
         # Check if user already exists - ADDED validation per REQ-AUTH-003
         existing_user = crud.get_user_by_username(db, data.username)
         if existing_user:
-            raise HTTPException(status_code=400, detail="Username already exists")
+            raise SecureHTTPException(
+                status_code=400, 
+                detail="Registration failed",
+                internal_detail=f"Username {data.username} already exists"
+            )
         
         # FIXED: Use correct CRUD function with all required parameters per REQ-AUTH-001
         seed  = new_secret()
@@ -57,48 +59,40 @@ def register_user(data: RegisterRequest, request: Request, db: Session = Depends
         
         return {
             "status": "success",
-            "user_id": str(user.user_id),
-            "totp_secret": seed,                       # client stores this
-            "otpauth_uri": provisioning_uri(seed, data.username)
-        } # Return user IDeturn user ID
+            "user_id": str(user.user_id),                    # client stores this
+            "otpauth_uri": provisioning_uri(seed, data.username),
+            "message": "Please scan the QR code or manually enter the secret from your authenticator app"
+        } # Return user ID
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise handle_database_error(e)
 
-
-#I'm gonna write the totp into the login route and comment out /totp route - seems like a better approach?
 @router.post("/login")
 def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
     # Rate limit by both IP and username
     client_ip = request.client.host
     if rate_limiter.is_rate_limited(client_ip, "login") or rate_limiter.is_rate_limited(data.username, "login"):
         remaining = rate_limiter.get_remaining_attempts(client_ip, "login")
-        raise HTTPException(
+        raise SecureHTTPException(
             status_code=429,
-            detail={
-                "error": "Too many login attempts",
-                "reset_in": remaining["reset_in"],
-                "retry_after": remaining["reset_in"]
-            }
+            detail="Too many login attempts. Please try again later.",
+            internal_detail=f"Rate limit exceeded for {client_ip} or {data.username}"
         )
 
     user = crud.get_user_by_username(db, data.username)
     if not user or not crud.verify_user_auth(db, data.username, data.auth_key):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise handle_authentication_error(Exception("Invalid credentials"))
     
     if rate_limiter.is_rate_limited(data.username, "totp"):
         remaining = rate_limiter.get_remaining_attempts(data.username, "totp")
-        raise HTTPException(
+        raise SecureHTTPException(
             status_code=429,
-            detail={
-                "error": "Too many TOTP attempts",
-                "reset_in": remaining["reset_in"],
-                "retry_after": remaining["reset_in"]
-            }
+            detail="Too many TOTP attempts. Please try again later.",
+            internal_detail=f"TOTP rate limit exceeded for {data.username}"
         )
     
     # TOTP verification
     if not verify_totp(db, data.username, data.otp):
-        raise HTTPException(401, "Invalid or replayed TOTP")
+        raise handle_authentication_error(Exception("Invalid or replayed TOTP"))
     
     # Create authenticated session
     session_token = session_manager.create_session(
@@ -109,56 +103,30 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
     # Get encrypted MEK
     mek_bytes = crud.get_encrypted_mek(db, data.username)
     if not mek_bytes:
-        raise HTTPException(500, "Encrypted MEK not found")
+        raise handle_database_error(Exception("Encrypted MEK not found"))
     encrypted_mek = base64.b64encode(mek_bytes).decode()
     
     return {"session_token": session_token, "encrypted_mek": encrypted_mek}
-
-# @router.post("/totp")
-# def verify_totp_and_return_mek(data: TOTPRequest, db: Session = Depends(get_db)):  # ADDED: Database session dependency
-#     # TODO: Validate session from login before allowing TOTP verification.
-#     if not verify_totp(db,data.username, data.totp_code): # Placeholder
-#         raise HTTPException(status_code=401, detail="Invalid TOTP")
-    
-#     # TODO: Ensure that a valid session/state exists from the initial login step.
-#     user = crud.get_user_by_username(db, data.username)
-#     if not user:
-#         raise HTTPException(status_code=404, detail="User not found")
-        
-#     mek_bytes = crud.get_encrypted_mek(db, data.username)  # FIXED: Pass db session
-    
-#     # Convert bytes to base64 string for JSON serialization - FIXED encoding issue
-#     if mek_bytes:
-#         encrypted_mek = base64.b64encode(mek_bytes).decode('utf-8')
-#     else:
-#         # Placeholder for when user doesn't exist or no MEK found
-#         encrypted_mek = "placeholder_encrypted_mek_not_implemented"
-    
-#     # Generate proper JWT session token - FIXED: Use JWT instead of random token
-#     session_token = create_access_token(data={"sub": str(user.user_id)})
-    
-#     # TODO: Store this new session_token, perhaps replacing the previous one.
-#     return {"session_token": session_token, "encrypted_mek": encrypted_mek}
 
 @router.post("/logout")
 async def logout(data: LogoutRequest):
     """Logout user by invalidating session"""
     if session_manager.delete_session(data.session_token):
         return {"status": "success"}
-    raise HTTPException(status_code=401, detail="Invalid or expired session")
+    raise handle_authentication_error(Exception("Invalid or expired session"))
 
 @router.post("/change_password")
 async def change_password(data: ChangePasswordRequest, db: Session = Depends(get_db)):  # ADDED: Database session dependency
     # Verify session is authenticated
     session = session_manager.get_session(data.session_token)
     if not session or session["username"] != data.username or session["data"].get("status") != "authenticated":
-        raise HTTPException(status_code=401, detail="Invalid or expired session")
+        raise handle_authentication_error(Exception("Invalid or expired session"))
 
     if not crud.verify_user_auth(db, data.username, data.old_auth_key):  # FIXED: Pass db session
-        raise HTTPException(status_code=401, detail="Invalid old credentials")
+        raise handle_authentication_error(Exception("Invalid old credentials"))
 
     if not verify_totp(db, data.username, data.totp_code): # Placeholder
-        raise HTTPException(status_code=401, detail="Invalid TOTP")
+        raise handle_authentication_error(Exception("Invalid TOTP"))
 
     try:
         # TODO: Invalidate old sessions/tokens after password change.
@@ -175,5 +143,4 @@ async def change_password(data: ChangePasswordRequest, db: Session = Depends(get
         
         return {"status": "success", "session": new_session_token} # Placeholder: new session token
     except Exception as e:
-        # TODO: More specific error handling.
-        raise HTTPException(status_code=500, detail={"status": "error", "message": str(e)}) 
+        raise handle_database_error(e) 

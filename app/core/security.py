@@ -38,7 +38,7 @@ if os.getenv("ENVIRONMENT") == "production":
         raise RuntimeError("TOTP_ENCRYPTION_KEY must be set in production!")
         
 # For development, use a default key
-TOTP_ENCRYPTION_KEY = os.getenv("TOTP_ENCRYPTION_KEY", "j10sWLvYgV7vHcnJ88aaCVqIFN8W063kQKy3_WqGKK4=")
+TOTP_ENCRYPTION_KEY = os.getenv("TOTP_ENCRYPTION_KEY")
 
 fernet = Fernet(TOTP_ENCRYPTION_KEY)
 

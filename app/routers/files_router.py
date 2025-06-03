@@ -17,6 +17,8 @@ from app.db.database import get_db
 from app.db import crud
 from app.db.models import User
 from app.core.security import get_current_active_user, get_client_ip, compute_hmac
+from app.core.config import AUDIT_LOG_HMAC_KEY
+from app.core.exceptions import handle_database_error, handle_file_operation_error, handle_generic_error, SecureHTTPException
 
 router = APIRouter()
 
@@ -84,7 +86,7 @@ async def upload_file(
         # Create audit log entry (per requirements REQ-AUDIT-002)
         client_ip = get_client_ip(request)
         log_data = f"{file_record.file_id}{current_user.user_id}upload{int(time.time())}"
-        log_hmac = compute_hmac(log_data, "audit_log_key")
+        log_hmac = compute_hmac(log_data, AUDIT_LOG_HMAC_KEY)
         
         crud.create_audit_log(
             db=db,
@@ -107,10 +109,7 @@ async def upload_file(
             os.remove(file_path)
         if 'new_file_path' in locals() and os.path.exists(new_file_path):
             os.remove(new_file_path)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"status": "error", "message": f"Upload failed: {str(e)}"}
-        )
+        raise handle_file_operation_error(e)
 
 @router.get("/{file_id}/download")
 async def download_file(
@@ -124,18 +123,18 @@ async def download_file(
         # Check if user owns file or has share access
         file_record = crud.get_file_by_id(db, file_id)
         if not file_record:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+            raise SecureHTTPException(status_code=404, detail="File not found", internal_detail=f"File {file_id} not found")
         
         has_access = (file_record.owner_id == current_user.user_id or 
                      crud.get_active_share(db, file_id, current_user.user_id) is not None)
         
         if not has_access:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+            raise SecureHTTPException(status_code=403, detail="Access denied", internal_detail=f"User {current_user.user_id} attempted to access file {file_id}")
         
         # Create audit log
         client_ip = get_client_ip(request)
         log_data = f"{file_id}{current_user.user_id}download{int(time.time())}"
-        log_hmac = compute_hmac(log_data, "audit_log_key")
+        log_hmac = compute_hmac(log_data, AUDIT_LOG_HMAC_KEY)
         
         crud.create_audit_log(
             db=db,
@@ -164,10 +163,7 @@ async def download_file(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"status": "error", "message": f"Download failed: {str(e)}"}
-        )
+        raise handle_file_operation_error(e)
 
 @router.get("/{file_id}/metadata")
 async def get_file_metadata(
@@ -179,7 +175,7 @@ async def get_file_metadata(
     try:
         file_record = crud.get_file_by_id(db, file_id)
         if not file_record:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+            raise SecureHTTPException(status_code=404, detail="File not found", internal_detail=f"File {file_id} not found")
         
         # Check if user owns the file
         is_owner = file_record.owner_id == current_user.user_id
@@ -188,7 +184,7 @@ async def get_file_metadata(
         share_record = crud.get_active_share(db, file_id, current_user.user_id)
         
         if not is_owner and share_record is None:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+            raise SecureHTTPException(status_code=403, detail="Access denied", internal_detail=f"User {current_user.user_id} attempted to access metadata for file {file_id}")
         
         # Return different response based on ownership vs shared access
         if is_owner:
@@ -207,10 +203,7 @@ async def get_file_metadata(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"status": "error", "message": f"Failed to get metadata: {str(e)}"}
-        )
+        raise handle_database_error(e)
 
 @router.post("/share", response_model=dict)
 async def share_file(
@@ -223,25 +216,28 @@ async def share_file(
     try:
         # Verify file ownership
         if not crud.verify_file_ownership(db, share_request.file_id, current_user.user_id):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't own this file"
+            raise SecureHTTPException(
+                status_code=403,
+                detail="Access denied",
+                internal_detail=f"User {current_user.user_id} tried to share file {share_request.file_id} they don't own"
             )
         
         # Get recipient user
         recipient = crud.get_user_by_username(db, share_request.recipient_username)
         if not recipient:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Recipient user not found"
+            raise SecureHTTPException(
+                status_code=404,
+                detail="Recipient user not found",
+                internal_detail=f"User {share_request.recipient_username} not found"
             )
         
         # Check if share already exists
         existing_share = crud.get_active_share(db, share_request.file_id, recipient.user_id)
         if existing_share:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="File already shared with this user"
+            raise SecureHTTPException(
+                status_code=409,
+                detail="File already shared with this user",
+                internal_detail=f"File {share_request.file_id} already shared with user {recipient.user_id}"
             )
         
         # Create share
@@ -259,7 +255,7 @@ async def share_file(
         # Create audit log
         client_ip = get_client_ip(request)
         log_data = f"{share_request.file_id}{current_user.user_id}share{int(time.time())}"
-        log_hmac = compute_hmac(log_data, "audit_log_key")
+        log_hmac = compute_hmac(log_data, AUDIT_LOG_HMAC_KEY)
         
         crud.create_audit_log(
             db=db,
@@ -279,10 +275,7 @@ async def share_file(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"status": "error", "message": f"Share failed: {str(e)}"}
-        )
+        raise handle_database_error(e)
 
 @router.delete("/share/{share_id}", response_model=dict)
 async def revoke_share(
@@ -295,9 +288,10 @@ async def revoke_share(
     try:
         success = crud.revoke_share(db, share_id, current_user.user_id)
         if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Share not found or you don't have permission to revoke it"
+            raise SecureHTTPException(
+                status_code=404,
+                detail="Share not found or access denied",
+                internal_detail=f"Share {share_id} not found or user {current_user.user_id} lacks permission"
             )
         
         # Get share details for audit log
@@ -305,7 +299,7 @@ async def revoke_share(
         if share:
             client_ip = get_client_ip(request)
             log_data = f"{share.file_id}{current_user.user_id}revoke{int(time.time())}"
-            log_hmac = compute_hmac(log_data, "audit_log_key")
+            log_hmac = compute_hmac(log_data, AUDIT_LOG_HMAC_KEY)
             
             crud.create_audit_log(
                 db=db,
@@ -321,10 +315,7 @@ async def revoke_share(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"status": "error", "message": f"Revoke failed: {str(e)}"}
-        )
+        raise handle_database_error(e)
 
 @router.get("/", response_model=UserFilesResponse)
 async def list_files(
@@ -363,10 +354,7 @@ async def list_files(
         )
         
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"status": "error", "message": f"Failed to list files: {str(e)}"}
-        )
+        raise handle_database_error(e)
 
 @router.get("/{file_id}/shares", response_model=List[ShareResponse])
 async def list_file_shares(
@@ -378,9 +366,10 @@ async def list_file_shares(
     try:
         # Verify file ownership
         if not crud.verify_file_ownership(db, file_id, current_user.user_id):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't own this file"
+            raise SecureHTTPException(
+                status_code=403,
+                detail="Access denied",
+                internal_detail=f"User {current_user.user_id} tried to list shares for file {file_id} they don't own"
             )
         
         shares = crud.get_file_shares(db, file_id, current_user.user_id)
@@ -389,10 +378,7 @@ async def list_file_shares(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"status": "error", "message": f"Failed to list shares: {str(e)}"}
-        )
+        raise handle_database_error(e)
 
 @router.get("/shares/received", response_model=List[SharedFileResponse])
 async def list_received_shares(
@@ -422,10 +408,7 @@ async def list_received_shares(
         return shared_files
         
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"status": "error", "message": f"Failed to list received shares: {str(e)}"}
-        )
+        raise handle_database_error(e)
 
 @router.get("/{file_id}/audit", response_model=List[AuditLogResponse])
 async def get_file_audit_logs(
@@ -442,10 +425,7 @@ async def get_file_audit_logs(
         return [AuditLogResponse.model_validate(log) for log in logs]
         
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"status": "error", "message": f"Failed to get audit logs: {str(e)}"}
-        )
+        raise handle_database_error(e)
 
 @router.delete("/delete", response_model=dict)
 async def delete_file(
@@ -458,15 +438,16 @@ async def delete_file(
     try:
         success = crud.hard_delete_file(db, delete_request.file_id, current_user.user_id)
         if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="File not found or you don't have permission to delete it"
+            raise SecureHTTPException(
+                status_code=404,
+                detail="File not found or access denied",
+                internal_detail=f"File {delete_request.file_id} not found or user {current_user.user_id} lacks delete permission"
             )
         
         # Create audit log
         client_ip = get_client_ip(request)
         log_data = f"{delete_request.file_id}{current_user.user_id}delete{int(time.time())}"
-        log_hmac = compute_hmac(log_data, "audit_log_key")
+        log_hmac = compute_hmac(log_data, AUDIT_LOG_HMAC_KEY)
         
         crud.create_audit_log(
             db=db,
@@ -482,7 +463,4 @@ async def delete_file(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"status": "error", "message": f"Delete failed: {str(e)}"}
-        ) 
+        raise handle_database_error(e) 
