@@ -12,32 +12,33 @@ from core.rate_limiter import RateLimiter
 
 app = FastAPI(title=PROJECT_NAME, description="Server for CS4455 Epic Project")
 
-# CORS Middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOW_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS Middleware - Allows cross-origin requests from specified domains (enables web browsers to access API from different ports/domains)
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=ALLOW_ORIGINS,
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
 
-# Security middleware
-if ENVIRONMENT in ["production", "staging"]:
-    app.add_middleware(HTTPSRedirectMiddleware)
-    app.add_middleware(
-        TrustedHostMiddleware, 
-        allowed_hosts=["yourdomain.com", "*.yourdomain.com"]
-    )
+# Security middleware for production - Automatically redirects HTTP to HTTPS and validates request host headers
+# if ENVIRONMENT in ["production", "staging"]:
+#     app.add_middleware(HTTPSRedirectMiddleware)  # Forces all HTTP requests to redirect to HTTPS
+#     app.add_middleware(
+#         TrustedHostMiddleware,  # Blocks requests with malicious Host headers (prevents host header injection attacks)
+#         allowed_hosts=["yourdomain.com", "*.yourdomain.com"]
+#     )
 
-@app.middleware("http")
-async def add_security_headers(request: Request, call_next):
-    response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    response.headers["Content-Security-Policy"] = "default-src 'self'"
-    return response
+# Security headers middleware - Adds protective HTTP headers to every response to prevent common web attacks
+# @app.middleware("http")
+# async def add_security_headers(request: Request, call_next):
+#     response = await call_next(request)
+#     response.headers["X-Content-Type-Options"] = "nosniff"  # Prevents MIME sniffing attacks
+#     response.headers["X-Frame-Options"] = "DENY"  # Prevents clickjacking by blocking iframe embedding
+#     response.headers["X-XSS-Protection"] = "1; mode=block"  # Enables browser XSS filtering
+#     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"  # Forces HTTPS for 1 year
+#     response.headers["Content-Security-Policy"] = "default-src 'self'"  # Only allows resources from same domain
+#     return response
 
 # Include routers
 app.include_router(auth_router.router, prefix="/api/auth", tags=["Authentication"])
