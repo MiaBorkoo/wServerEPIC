@@ -27,14 +27,16 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
 if ENVIRONMENT == "production":
     ALLOW_ORIGINS = [
-        "https://yourdomain.com",
-        "https://app.yourdomain.com"
+        "https://chrisplusplus.gobbler.info:3010/",
+        #"https://app.yourdomain.com"
     ]
 else:
     # Development only
     ALLOW_ORIGINS = [
         "http://localhost:3000",
         "http://localhost:8080",
+        "https://chrisplusplus.gobbler.info:3010/",
+        "http://chrisplusplus.gobbler.info:3010/"
         "*"
     ]
 
