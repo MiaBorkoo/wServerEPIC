@@ -1,0 +1,836 @@
+{
+  "summary": {
+    "total": 93,
+    "passed": 57,
+    "failed": 23,
+    "vulnerabilities": 13
+  },
+  "vulnerabilities": [
+    {
+      "test_id": "IV-SQL-002",
+      "description": "SQL injection in User salts endpoint",
+      "severity": "MEDIUM",
+      "details": "Payload: ' OR '1'='1"
+    },
+    {
+      "test_id": "IV-SQL-002",
+      "description": "SQL injection in User salts endpoint",
+      "severity": "MEDIUM",
+      "details": "Payload: admin'; DROP TABLE users; --"
+    },
+    {
+      "test_id": "IV-SQL-002",
+      "description": "SQL injection in User salts endpoint",
+      "severity": "MEDIUM",
+      "details": "Payload: ' UNION SELECT * FROM users --"
+    },
+    {
+      "test_id": "IV-SQL-002",
+      "description": "SQL injection in User salts endpoint",
+      "severity": "MEDIUM",
+      "details": "Payload: 1' OR 1=1#"
+    },
+    {
+      "test_id": "IV-SQL-002",
+      "description": "SQL injection in User salts endpoint",
+      "severity": "MEDIUM",
+      "details": "Payload: '; SELECT * FROM information_schema.tables; --"
+    },
+    {
+      "test_id": "IV-SQL-002",
+      "description": "SQL injection in User salts endpoint",
+      "severity": "MEDIUM",
+      "details": "Payload: 1' AND (SELECT COUNT(*) FROM users) > 0 --"
+    },
+    {
+      "test_id": "IV-SQL-002",
+      "description": "SQL injection in User salts endpoint",
+      "severity": "MEDIUM",
+      "details": "Payload: ' OR 1=1 LIMIT 1 --"
+    },
+    {
+      "test_id": "IV-SQL-002",
+      "description": "SQL injection in User salts endpoint",
+      "severity": "MEDIUM",
+      "details": "Payload: ' OR 1=1; DROP TABLE users; --"
+    },
+    {
+      "test_id": "IV-SQL-002",
+      "description": "SQL injection in User salts endpoint",
+      "severity": "MEDIUM",
+      "details": "Payload: 1' UNION SELECT username, password FROM users--"
+    },
+    {
+      "test_id": "BA-SESS-001",
+      "description": "Session fixation test",
+      "severity": "MEDIUM",
+      "details": ""
+    },
+    {
+      "test_id": "BA-RATE-002",
+      "description": "Login rate limiting",
+      "severity": "HIGH",
+      "details": "Completed 15 attempts"
+    },
+    {
+      "test_id": "SM-HEADERS-001",
+      "description": "Missing security headers",
+      "severity": "MEDIUM",
+      "details": "Missing: Strict-Transport-Security"
+    },
+    {
+      "test_id": "SM-INFO-001",
+      "description": "Server information disclosure",
+      "severity": "LOW",
+      "details": "Disclosed: Server: uvicorn"
+    }
+  ],
+  "risk_level": "MEDIUM",
+  "timestamp": 1748993007.719166,
+  "all_results": [
+    {
+      "test_id": "IV-USER-004",
+      "description": "Username validation: Empty username",
+      "result": "Unexpected response: 500",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993002.9938061
+    },
+    {
+      "test_id": "IV-USER-004",
+      "description": "Username validation: SQL injection in username",
+      "result": "Unexpected response: 500",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993003.001012
+    },
+    {
+      "test_id": "IV-USER-004",
+      "description": "Username validation: XSS payload in username",
+      "result": "Unexpected response: 500",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993003.00595
+    },
+    {
+      "test_id": "IV-USER-004",
+      "description": "Username validation: Unicode characters",
+      "result": "Unexpected response: 500",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993003.01158
+    },
+    {
+      "test_id": "IV-USER-004",
+      "description": "Username validation: Very long username",
+      "result": "Unexpected response: 500",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993003.016671
+    },
+    {
+      "test_id": "IV-USER-004",
+      "description": "Username validation: Too short username",
+      "result": "Unexpected response: 500",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993003.023412
+    },
+    {
+      "test_id": "IV-USER-004",
+      "description": "Username validation: Valid username",
+      "result": "Unexpected response: 500",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993003.028743
+    },
+    {
+      "test_id": "IV-USER-004",
+      "description": "Username validation: Reserved username",
+      "result": "Unexpected response: 500",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993003.033707
+    },
+    {
+      "test_id": "IV-USER-004",
+      "description": "Username validation: Email format",
+      "result": "Unexpected response: 500",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993003.038692
+    },
+    {
+      "test_id": "IV-USER-004",
+      "description": "Username validation: Spaces in username",
+      "result": "Unexpected response: 500",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993003.042798
+    },
+    {
+      "test_id": "IV-SQL-002",
+      "description": "SQL injection in User salts endpoint",
+      "result": "VULNERABLE - Server error",
+      "severity": "MEDIUM",
+      "details": "Payload: ' OR '1'='1",
+      "timestamp": 1748993003.0976179
+    },
+    {
+      "test_id": "IV-SQL-003",
+      "description": "SQL injection in File metadata endpoint",
+      "result": "PASS - No SQL injection",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.09918
+    },
+    {
+      "test_id": "IV-SQL-002",
+      "description": "SQL injection in User salts endpoint",
+      "result": "VULNERABLE - Server error",
+      "severity": "MEDIUM",
+      "details": "Payload: admin'; DROP TABLE users; --",
+      "timestamp": 1748993003.100798
+    },
+    {
+      "test_id": "IV-SQL-003",
+      "description": "SQL injection in File metadata endpoint",
+      "result": "PASS - No SQL injection",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.10208
+    },
+    {
+      "test_id": "IV-SQL-002",
+      "description": "SQL injection in User salts endpoint",
+      "result": "VULNERABLE - Server error",
+      "severity": "MEDIUM",
+      "details": "Payload: ' UNION SELECT * FROM users --",
+      "timestamp": 1748993003.103412
+    },
+    {
+      "test_id": "IV-SQL-003",
+      "description": "SQL injection in File metadata endpoint",
+      "result": "PASS - No SQL injection",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.104408
+    },
+    {
+      "test_id": "IV-SQL-002",
+      "description": "SQL injection in User salts endpoint",
+      "result": "VULNERABLE - Server error",
+      "severity": "MEDIUM",
+      "details": "Payload: 1' OR 1=1#",
+      "timestamp": 1748993003.105818
+    },
+    {
+      "test_id": "IV-SQL-003",
+      "description": "SQL injection in File metadata endpoint",
+      "result": "PASS - No SQL injection",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.106782
+    },
+    {
+      "test_id": "IV-SQL-002",
+      "description": "SQL injection in User salts endpoint",
+      "result": "VULNERABLE - Server error",
+      "severity": "MEDIUM",
+      "details": "Payload: '; SELECT * FROM information_schema.tables; --",
+      "timestamp": 1748993003.108161
+    },
+    {
+      "test_id": "IV-SQL-003",
+      "description": "SQL injection in File metadata endpoint",
+      "result": "PASS - No SQL injection",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.1093829
+    },
+    {
+      "test_id": "IV-SQL-002",
+      "description": "SQL injection in User salts endpoint",
+      "result": "VULNERABLE - Server error",
+      "severity": "MEDIUM",
+      "details": "Payload: 1' AND (SELECT COUNT(*) FROM users) > 0 --",
+      "timestamp": 1748993003.110815
+    },
+    {
+      "test_id": "IV-SQL-003",
+      "description": "SQL injection in File metadata endpoint",
+      "result": "PASS - No SQL injection",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.111862
+    },
+    {
+      "test_id": "IV-SQL-002",
+      "description": "SQL injection in User salts endpoint",
+      "result": "VULNERABLE - Server error",
+      "severity": "MEDIUM",
+      "details": "Payload: ' OR 1=1 LIMIT 1 --",
+      "timestamp": 1748993003.1135428
+    },
+    {
+      "test_id": "IV-SQL-003",
+      "description": "SQL injection in File metadata endpoint",
+      "result": "PASS - No SQL injection",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.1146529
+    },
+    {
+      "test_id": "IV-SQL-003",
+      "description": "SQL injection in User salts endpoint",
+      "result": "PASS - No SQL injection",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.116985
+    },
+    {
+      "test_id": "IV-SQL-003",
+      "description": "SQL injection in File metadata endpoint",
+      "result": "PASS - No SQL injection",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.1182048
+    },
+    {
+      "test_id": "IV-SQL-002",
+      "description": "SQL injection in User salts endpoint",
+      "result": "VULNERABLE - Server error",
+      "severity": "MEDIUM",
+      "details": "Payload: ' OR 1=1; DROP TABLE users; --",
+      "timestamp": 1748993003.119576
+    },
+    {
+      "test_id": "IV-SQL-003",
+      "description": "SQL injection in File metadata endpoint",
+      "result": "PASS - No SQL injection",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.120597
+    },
+    {
+      "test_id": "IV-SQL-002",
+      "description": "SQL injection in User salts endpoint",
+      "result": "VULNERABLE - Server error",
+      "severity": "MEDIUM",
+      "details": "Payload: 1' UNION SELECT username, password FROM users--",
+      "timestamp": 1748993003.122114
+    },
+    {
+      "test_id": "IV-SQL-003",
+      "description": "SQL injection in File metadata endpoint",
+      "result": "PASS - No SQL injection",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.123126
+    },
+    {
+      "test_id": "IV-XSS-002",
+      "description": "XSS test",
+      "result": "PASS - Input sanitized",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.127203
+    },
+    {
+      "test_id": "IV-XSS-002",
+      "description": "XSS test",
+      "result": "PASS - Input sanitized",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.132403
+    },
+    {
+      "test_id": "IV-XSS-002",
+      "description": "XSS test",
+      "result": "PASS - Input sanitized",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.13772
+    },
+    {
+      "test_id": "IV-XSS-002",
+      "description": "XSS test",
+      "result": "PASS - Input sanitized",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.141835
+    },
+    {
+      "test_id": "IV-XSS-002",
+      "description": "XSS test",
+      "result": "PASS - Input sanitized",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.1462028
+    },
+    {
+      "test_id": "IV-XSS-002",
+      "description": "XSS test",
+      "result": "PASS - Input sanitized",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.151011
+    },
+    {
+      "test_id": "IV-XSS-002",
+      "description": "XSS test",
+      "result": "PASS - Input sanitized",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.154987
+    },
+    {
+      "test_id": "IV-XSS-002",
+      "description": "XSS test",
+      "result": "PASS - Input sanitized",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.1596549
+    },
+    {
+      "test_id": "IV-XSS-002",
+      "description": "XSS test",
+      "result": "PASS - Input sanitized",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.165558
+    },
+    {
+      "test_id": "IV-XSS-002",
+      "description": "XSS test",
+      "result": "PASS - Input sanitized",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993003.169817
+    },
+    {
+      "test_id": "FU-VAL-001",
+      "description": "File upload validation placeholder",
+      "result": "INFO - Method implemented",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993003.1698282
+    },
+    {
+      "test_id": "API-VAL-001",
+      "description": "API input validation placeholder",
+      "result": "INFO - Method implemented",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993003.169832
+    },
+    {
+      "test_id": "BA-SESS-001",
+      "description": "Session fixation test",
+      "result": "VULNERABLE - Session not regenerated",
+      "severity": "MEDIUM",
+      "details": "",
+      "timestamp": 1748993003.175529
+    },
+    {
+      "test_id": "BA-CONC-001",
+      "description": "Concurrent session test",
+      "result": "INFO - Test completed",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993003.5529668
+    },
+    {
+      "test_id": "BA-RATE-002",
+      "description": "Login rate limiting",
+      "result": "VULNERABLE - No rate limiting detected",
+      "severity": "HIGH",
+      "details": "Completed 15 attempts",
+      "timestamp": 1748993006.477033
+    },
+    {
+      "test_id": "AUTH-BYP-001",
+      "description": "Authentication bypass placeholder",
+      "result": "INFO - Method implemented",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993007.6509922
+    },
+    {
+      "test_id": "AC-UNAUTH-002",
+      "description": "Access control for Files listing",
+      "result": "PASS - Authentication required",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.655724
+    },
+    {
+      "test_id": "AC-UNAUTH-003",
+      "description": "Unexpected response for File upload",
+      "result": "Status 405",
+      "severity": "MEDIUM",
+      "details": "",
+      "timestamp": 1748993007.658172
+    },
+    {
+      "test_id": "AC-UNAUTH-003",
+      "description": "Unexpected response for User profile",
+      "result": "Status 404",
+      "severity": "MEDIUM",
+      "details": "",
+      "timestamp": 1748993007.660173
+    },
+    {
+      "test_id": "AC-IDOR-002",
+      "description": "IDOR test with ID: 1",
+      "result": "PASS - Access denied",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.662173
+    },
+    {
+      "test_id": "AC-IDOR-002",
+      "description": "IDOR test with ID: 2",
+      "result": "PASS - Access denied",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.664027
+    },
+    {
+      "test_id": "AC-IDOR-002",
+      "description": "IDOR test with ID: 3",
+      "result": "PASS - Access denied",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.665928
+    },
+    {
+      "test_id": "AC-IDOR-002",
+      "description": "IDOR test with ID: 999",
+      "result": "PASS - Access denied",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.667744
+    },
+    {
+      "test_id": "AC-IDOR-002",
+      "description": "IDOR test with ID: 0",
+      "result": "PASS - Access denied",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.66926
+    },
+    {
+      "test_id": "AC-IDOR-002",
+      "description": "IDOR test with ID: -1",
+      "result": "PASS - Access denied",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.6706932
+    },
+    {
+      "test_id": "AC-IDOR-002",
+      "description": "IDOR test with ID: 00000000-0000-0000-0000-000000000001",
+      "result": "PASS - Access denied",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.671991
+    },
+    {
+      "test_id": "AC-IDOR-002",
+      "description": "IDOR test with ID: 11111111-1111-1111-1111-111111111111",
+      "result": "PASS - Access denied",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.67328
+    },
+    {
+      "test_id": "AC-IDOR-002",
+      "description": "IDOR test with ID: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "result": "PASS - Access denied",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.674648
+    },
+    {
+      "test_id": "AC-IDOR-002",
+      "description": "IDOR test with ID: ../admin",
+      "result": "PASS - Access denied",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.675831
+    },
+    {
+      "test_id": "AC-IDOR-002",
+      "description": "IDOR test with ID: ../../etc/passwd",
+      "result": "PASS - Access denied",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.677065
+    },
+    {
+      "test_id": "FILE-AC-001",
+      "description": "File access control placeholder",
+      "result": "INFO - Method implemented",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993007.677082
+    },
+    {
+      "test_id": "INJ-CMD-002",
+      "description": "Command injection test",
+      "result": "PASS - Command not executed",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.6792939
+    },
+    {
+      "test_id": "INJ-CMD-002",
+      "description": "Command injection test",
+      "result": "PASS - Command not executed",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.680949
+    },
+    {
+      "test_id": "INJ-CMD-002",
+      "description": "Command injection test",
+      "result": "PASS - Command not executed",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.6826859
+    },
+    {
+      "test_id": "INJ-CMD-002",
+      "description": "Command injection test",
+      "result": "PASS - Command not executed",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.683875
+    },
+    {
+      "test_id": "INJ-CMD-002",
+      "description": "Command injection test",
+      "result": "PASS - Command not executed",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.685554
+    },
+    {
+      "test_id": "INJ-CMD-002",
+      "description": "Command injection test",
+      "result": "PASS - Command not executed",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.686718
+    },
+    {
+      "test_id": "INJ-CMD-002",
+      "description": "Command injection test",
+      "result": "PASS - Command not executed",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.687818
+    },
+    {
+      "test_id": "INJ-CMD-002",
+      "description": "Command injection test",
+      "result": "PASS - Command not executed",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.689523
+    },
+    {
+      "test_id": "INJ-PATH-003",
+      "description": "Path traversal test",
+      "result": "PASS - Path traversal blocked",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.690656
+    },
+    {
+      "test_id": "INJ-PATH-003",
+      "description": "Path traversal test",
+      "result": "PASS - Path traversal blocked",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.691796
+    },
+    {
+      "test_id": "INJ-PATH-003",
+      "description": "Path traversal test",
+      "result": "PASS - Path traversal blocked",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.692961
+    },
+    {
+      "test_id": "INJ-PATH-003",
+      "description": "Path traversal test",
+      "result": "PASS - Path traversal blocked",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.694261
+    },
+    {
+      "test_id": "INJ-PATH-003",
+      "description": "Path traversal test",
+      "result": "PASS - Path traversal blocked",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.695318
+    },
+    {
+      "test_id": "INJ-PATH-003",
+      "description": "Path traversal test",
+      "result": "PASS - Path traversal blocked",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.696791
+    },
+    {
+      "test_id": "INJ-PATH-003",
+      "description": "Path traversal test",
+      "result": "PASS - Path traversal blocked",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.698022
+    },
+    {
+      "test_id": "INJ-PATH-003",
+      "description": "Path traversal test",
+      "result": "PASS - Path traversal blocked",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.699182
+    },
+    {
+      "test_id": "LDAP-INJ-001",
+      "description": "LDAP injection placeholder",
+      "result": "INFO - Method implemented",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993007.699199
+    },
+    {
+      "test_id": "SM-HEADERS-001",
+      "description": "Missing security headers",
+      "result": "VULNERABLE - Security headers missing",
+      "severity": "MEDIUM",
+      "details": "Missing: Strict-Transport-Security",
+      "timestamp": 1748993007.7003121
+    },
+    {
+      "test_id": "SM-INFO-001",
+      "description": "Server information disclosure",
+      "result": "VULNERABLE - Version information exposed",
+      "severity": "LOW",
+      "details": "Disclosed: Server: uvicorn",
+      "timestamp": 1748993007.701334
+    },
+    {
+      "test_id": "DEF-CRED-001",
+      "description": "Default credentials placeholder",
+      "result": "INFO - Method implemented",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993007.701348
+    },
+    {
+      "test_id": "SDE-CRED-002",
+      "description": "Credential exposure check",
+      "result": "PASS - No sensitive data exposed",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.7023108
+    },
+    {
+      "test_id": "DEBUG-001",
+      "description": "Debug information placeholder",
+      "result": "INFO - Method implemented",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993007.702322
+    },
+    {
+      "test_id": "SDE-TOTP-004",
+      "description": "TOTP secret test - registration failed",
+      "result": "INFO - Registration failed with status 500",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993007.70699
+    },
+    {
+      "test_id": "FU-MAL-002",
+      "description": "Malicious file upload: shell.php",
+      "result": "PASS - Malicious file rejected",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.7089999
+    },
+    {
+      "test_id": "FU-MAL-002",
+      "description": "Malicious file upload: script.jsp",
+      "result": "PASS - Malicious file rejected",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.710332
+    },
+    {
+      "test_id": "FU-MAL-002",
+      "description": "Malicious file upload: malware.exe",
+      "result": "PASS - Malicious file rejected",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.711703
+    },
+    {
+      "test_id": "FU-MAL-002",
+      "description": "Malicious file upload: virus.bat",
+      "result": "PASS - Malicious file rejected",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.713143
+    },
+    {
+      "test_id": "FU-MAL-002",
+      "description": "Malicious file upload: script.js",
+      "result": "PASS - Malicious file rejected",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.714533
+    },
+    {
+      "test_id": "FU-MAL-002",
+      "description": "Malicious file upload: ../../../etc/passwd",
+      "result": "PASS - Malicious file rejected",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.7163022
+    },
+    {
+      "test_id": "FU-MAL-002",
+      "description": "Malicious file upload: file\u0000.jpg",
+      "result": "PASS - Malicious file rejected",
+      "severity": "PASS",
+      "details": "",
+      "timestamp": 1748993007.717495
+    },
+    {
+      "test_id": "SIZE-001",
+      "description": "File size limit placeholder",
+      "result": "INFO - Method implemented",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993007.7175071
+    },
+    {
+      "test_id": "MIME-001",
+      "description": "MIME type validation placeholder",
+      "result": "INFO - Method implemented",
+      "severity": "INFO",
+      "details": "",
+      "timestamp": 1748993007.717511
+    }
+  ]
+}

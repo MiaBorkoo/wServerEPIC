@@ -34,6 +34,7 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"  # Enables browser XSS filtering
     # Don't set HSTS - Apache handles this
     response.headers["Content-Security-Policy"] = "default-src 'self'"  # Only allows resources from same domain
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
     return response
 
 # Include routers
