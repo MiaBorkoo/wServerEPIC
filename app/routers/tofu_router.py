@@ -10,6 +10,7 @@ from app.db import crud
 from app.db.database import get_db
 from app.db.models import User
 from app.core.security import verify_signature  # Assumed to exist or use cryptography
+from app.core.exceptions import handle_database_error, handle_validation_error, SecureHTTPException
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.exceptions import InvalidSignature
@@ -33,7 +34,11 @@ def _verify_signature(public_key_bytes: bytes, message: bytes, signature: bytes)
     except InvalidSignature:
         return False
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Signature verification error: {str(e)}")
+        raise SecureHTTPException(
+            status_code=400, 
+            detail="Signature verification failed",
+            internal_detail=f"Signature verification error: {str(e)}"
+        )
 
 @router.post("/register-device")
 def register_device(request: DeviceCertRequest, db: Session = Depends(get_db)):
@@ -42,7 +47,11 @@ def register_device(request: DeviceCertRequest, db: Session = Depends(get_db)):
         # Verify user exists
         user = crud.get_user_by_id(db, request.user_id)
         if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise SecureHTTPException(
+                status_code=404, 
+                detail="User not found",
+                internal_detail=f"User {request.user_id} not found"
+            )
 
         # Decode base64 inputs
         public_key_bytes = base64.b64decode(request.public_key)
@@ -51,7 +60,11 @@ def register_device(request: DeviceCertRequest, db: Session = Depends(get_db)):
         # Verify signature
         message = f"{request.user_id}:{request.device_id}:{request.public_key}:{request.expires_at.isoformat()}".encode()
         if not _verify_signature(public_key_bytes, message, signature_bytes):
-            raise HTTPException(status_code=400, detail="Invalid signature")
+            raise SecureHTTPException(
+                status_code=400, 
+                detail="Invalid signature",
+                internal_detail=f"Device registration signature verification failed for user {request.user_id}"
+            )
 
         # Store device certificate
         cert_data = crud.create_device_certificate(
@@ -80,8 +93,10 @@ def register_device(request: DeviceCertRequest, db: Session = Depends(get_db)):
                 "created_at": trust_data["created_at"].isoformat()
             }
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise handle_database_error(e)
 
 @router.get("/devices/{user_id}")
 def get_user_devices(user_id: UUID, db: Session = Depends(get_db)):
@@ -90,7 +105,11 @@ def get_user_devices(user_id: UUID, db: Session = Depends(get_db)):
         # Verify user exists
         user = crud.get_user_by_id(db, user_id)
         if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise SecureHTTPException(
+                status_code=404, 
+                detail="User not found",
+                internal_detail=f"User {user_id} not found"
+            )
 
         # Get certificates
         devices = crud.get_user_certificates(db, user_id)
@@ -109,8 +128,10 @@ def get_user_devices(user_id: UUID, db: Session = Depends(get_db)):
             })
 
         return {"status": "success", "devices": response_devices}
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise handle_database_error(e)
 
 @router.post("/verify")
 def verify_device(request: VerificationRequest, db: Session = Depends(get_db)):
@@ -119,23 +140,39 @@ def verify_device(request: VerificationRequest, db: Session = Depends(get_db)):
         # Verify user exists
         user = crud.get_user_by_id(db, request.user_id)
         if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise SecureHTTPException(
+                status_code=404, 
+                detail="User not found",
+                internal_detail=f"User {request.user_id} not found"
+            )
 
         # Get device certificate
         device = crud.get_device_certificate(db, request.user_id, request.device_id)
         if not device:
-            raise HTTPException(status_code=404, detail="Device not found")
+            raise SecureHTTPException(
+                status_code=404, 
+                detail="Device not found",
+                internal_detail=f"Device {request.device_id} not found for user {request.user_id}"
+            )
 
         # Verify signature
         message = f"{request.user_id}:{request.device_id}:{request.verification_code}:{request.timestamp.isoformat()}".encode()
         signature = base64.b64decode(request.signature)
         if not _verify_signature(device["public_key"], message, signature):
-            raise HTTPException(status_code=400, detail="Invalid signature")
+            raise SecureHTTPException(
+                status_code=400, 
+                detail="Invalid signature",
+                internal_detail=f"Device verification signature failed for device {request.device_id}"
+            )
 
         # Get trust relationship
         trust_status = crud.get_trust_status(db, request.user_id, device["cert_id"])
         if not trust_status:
-            raise HTTPException(status_code=404, detail="Trust relationship not found")
+            raise SecureHTTPException(
+                status_code=404, 
+                detail="Trust relationship not found",
+                internal_detail=f"Trust relationship not found for cert {device['cert_id']}"
+            )
 
         # Update trust level
         updated_trust = crud.update_trust_level(
@@ -164,8 +201,10 @@ def verify_device(request: VerificationRequest, db: Session = Depends(get_db)):
                 "updated_at": updated_trust["updated_at"].isoformat()
             }
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise handle_database_error(e)
 
 @router.get("/verification-history/{trust_id}")
 def get_verification_history(trust_id: UUID, db: Session = Depends(get_db)):
@@ -190,4 +229,4 @@ def get_verification_history(trust_id: UUID, db: Session = Depends(get_db)):
 
         return {"status": "success", "events": response_events}
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise handle_database_error(e)

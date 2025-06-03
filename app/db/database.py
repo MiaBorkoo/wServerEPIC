@@ -8,6 +8,14 @@ load_dotenv()
 
 from app.core.config import DATABASE_URL, ENVIRONMENT
 
+# Check if we should echo the SQL queries - never in production 
+def should_echo_sql():
+    if os.getenv("ENVIRONMENT") == "production":
+        return False
+    return os.getenv("SQL_DEBUG", "false").lower() == "true"
+
+echo=should_echo_sql()
+
 # Database configuration
 def get_database_engine():
     if DATABASE_URL.startswith("sqlite"):
@@ -16,7 +24,7 @@ def get_database_engine():
             DATABASE_URL,
             poolclass=StaticPool,
             connect_args={"check_same_thread": False},
-            echo=os.getenv("SQL_DEBUG", "false").lower() == "true"
+            echo=echo
         )
     else:
         # PostgreSQL configuration
@@ -24,7 +32,7 @@ def get_database_engine():
             DATABASE_URL,
             pool_pre_ping=True,
             pool_recycle=300,
-            echo=os.getenv("SQL_DEBUG", "false").lower() == "true"
+            echo=echo
         )
 
 engine = get_database_engine()
