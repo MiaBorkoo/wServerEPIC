@@ -3,7 +3,6 @@ import ssl
 from datetime import timedelta
 from dotenv import load_dotenv
 from typing import List, Optional
-from pydantic import BaseSettings, validator
 
 # Load environment variables from .env file
 load_dotenv()
@@ -31,41 +30,16 @@ if ENVIRONMENT == "production":
         "https://yourdomain.com",
         "https://app.yourdomain.com"
     ]
-
 else:
     # Development only
     ALLOW_ORIGINS = [
         "http://localhost:3000",
-        "http://localhost:8080"
+        "http://localhost:8080",
         "*"
     ]
 
-class Settings(BaseSettings):
-    environment: str = "development"
-    cors_origins: List[str] = []
-    database_url: str
-    ssl_keyfile: Optional[str] = None
-    ssl_certfile: Optional[str] = None
-    
-    @validator('cors_origins', pre=True)
-    def parse_cors_origins(cls, v):
-        if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",")]
-        return v
-    
-    @validator('environment')
-    def validate_environment(cls, v):
-        if v not in ['development', 'production']:
-            raise ValueError('Environment must be development, staging, or production')
-        return v
-    
-    class Config:
-        env_file = ".env"
-
-settings = Settings()
-
 # Validate required production settings
-if settings.environment == "production":
+if ENVIRONMENT == "production":
     required_vars = ['DATABASE_URL', 'SECRET_KEY', 'TOTP_DATABASE_ENCRYPTION_KEY']
     missing_vars = [var for var in required_vars if not os.getenv(var)]
     if missing_vars:
@@ -78,23 +52,6 @@ class SSLConfig:
         self.ssl_certfile = os.getenv("SSL_CERTFILE")
         self.ssl_ca_certs = os.getenv("SSL_CA_CERTS")
         
-    def validate_ssl_files(self):
-        """Validate SSL certificate files exist and are readable"""
-        if ENVIRONMENT == "production":
-            if not self.ssl_keyfile or not self.ssl_certfile:
-                raise ValueError("SSL_KEYFILE and SSL_CERTFILE must be set in production")
-            
-            if not os.path.exists(self.ssl_keyfile):
-                raise FileNotFoundError(f"SSL key file not found: {self.ssl_keyfile}")
-            
-            if not os.path.exists(self.ssl_certfile):
-                raise FileNotFoundError(f"SSL cert file not found: {self.ssl_certfile}")
-            
-            # Check file permissions (should be readable only by owner)
-            key_stat = os.stat(self.ssl_keyfile)
-            if key_stat.st_mode & 0o077:
-                raise PermissionError(f"SSL key file has insecure permissions: {self.ssl_keyfile}")
-    
     def get_ssl_context(self):
         """Create secure SSL context with strong ciphers"""
         if not self.ssl_keyfile or not self.ssl_certfile:
@@ -119,19 +76,14 @@ class SSLConfig:
 
 ssl_config = SSLConfig()
 
-# Validate SSL configuration on startup
-if ENVIRONMENT in ["production", "staging"]:
-    ssl_config.validate_ssl_files()
-
-# Database URL with SSL enforcement
+# Database URL with SSL enforcement  
 if ENVIRONMENT == "production":
-    # Force SSL for production database connections
     DATABASE_URL = os.getenv("DATABASE_URL")
     if DATABASE_URL and "sslmode=" not in DATABASE_URL:
         separator = "&" if "?" in DATABASE_URL else "?"
-        DATABASE_URL += f"{separator}sslmode=require&sslcert=/path/to/client-cert.pem&sslkey=/path/to/client-key.pem&sslrootcert=/path/to/ca-cert.pem"
+        DATABASE_URL += f"{separator}sslmode=require"
 else:
-    DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/epic_db")
+    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./epic.db")
 
 # Redis URL with TLS
 if ENVIRONMENT == "production":
