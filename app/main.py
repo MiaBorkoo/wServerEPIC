@@ -1,14 +1,15 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import uvicorn
 
-from app.core.config import PROJECT_NAME, ALLOW_ORIGINS, PORT, SSL_KEYFILE, SSL_CERTFILE
-from app.routers import auth_router, files_router, user_router, health_router
+from app.core.config import PROJECT_NAME, ALLOW_ORIGINS, ENVIRONMENT
+from app.routers import auth_router, files_router, user_router  # , health_router
 from app.core.rate_limiter import RateLimiter
 
 app = FastAPI(title=PROJECT_NAME, description="Server for CS4455 Epic Project")
 
-# CORS Middleware
+# CORS Middleware - Allows cross-origin requests from specified domains (enables web browsers to access API from different ports/domains)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOW_ORIGINS,
@@ -17,11 +18,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Security middleware for production - validates request host headers
+# if ENVIRONMENT in ["production", "staging"]:
+#     app.add_middleware(
+#         TrustedHostMiddleware,  # Blocks requests with malicious Host headers
+#         allowed_hosts=["chrisplusplus.gobbler.info", "*.gobbler.info"]
+#     )
+
+# Security headers middleware - Adds protective HTTP headers to every response to prevent common web attacks
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"  # Prevents MIME sniffing attacks
+    response.headers["X-Frame-Options"] = "DENY"  # Prevents clickjacking by blocking iframe embedding
+    response.headers["X-XSS-Protection"] = "1; mode=block"  # Enables browser XSS filtering
+    # Don't set HSTS - Apache handles this
+    response.headers["Content-Security-Policy"] = "default-src 'self'"  # Only allows resources from same domain
+    return response
+
 # Include routers
 app.include_router(auth_router.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(files_router.router, prefix="/api/files", tags=["Files"])
 app.include_router(user_router.router, prefix="/api/user", tags=["User"])
-app.include_router(health_router.router, prefix="/api/health", tags=["Health"])
+# app.include_router(health_router.router, prefix="/api/health", tags=["Health"])
 
 
 @app.get("/")
@@ -32,11 +51,11 @@ async def root():
 # This is for when you run the app directly using `python app/main.py`
 # For production, you'd typically use `uvicorn app.main:app --reload`
 if __name__ == "__main__":
-    uvicorn.run(
-        "app.main:app", # Point to the app instance
-        host="0.0.0.0",
-        port=PORT,
-        reload=True, # Useful for development
-        ssl_keyfile=SSL_KEYFILE if SSL_KEYFILE and SSL_CERTFILE else None,
-        ssl_certfile=SSL_CERTFILE if SSL_KEYFILE and SSL_CERTFILE else None
-    ) 
+    uvicorn_config = {
+        "app": "app.main:app",
+        "host": "127.0.0.1",  # Internal only - Apache handles external access
+        "port": 3010,         # Your assigned port
+        "reload": ENVIRONMENT == "development"
+    }
+    
+    uvicorn.run(**uvicorn_config) 

@@ -1,8 +1,8 @@
 from .users import (
     RegisterRequest,
     LoginRequest,
-    TOTPRequest,
     ChangePasswordRequest,
+    LogoutRequest,
     UserSaltsResponse
 )
 from .files import (

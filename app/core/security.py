@@ -14,6 +14,7 @@ from cryptography.fernet import Fernet
 import ntplib
 import time
 import logging
+import json
 
 from app.db.database import get_db
 from app.db import crud
@@ -30,15 +31,17 @@ REFRESH_TOKEN_EXPIRE_DAYS = 7
 # • Encryption uses Fernet (AES-128-GCM + HMAC-SHA-256).
 
 APP_ENV = os.getenv("APP_ENV", "dev").lower() #choose environment
-TOTP_ENCRYPTION_KEY = os.getenv("TOTP_ENCRYPTION_KEY")
-if not TOTP_ENCRYPTION_KEY:
-    if APP_ENV == "dev":
-        # Generate a key for development environments
-        TOTP_ENCRYPTION_KEY = Fernet.generate_key()
-        print(f"Dev/test Fernet key generated on the fly: {TOTP_ENCRYPTION_KEY.decode()}")
-    fernet = Fernet(TOTP_ENCRYPTION_KEY)
-else:
-    raise RuntimeError("TOTP_ENCRYPTION_KEY must be set in production!") #store it in your secret-manager and use 
+
+# Change the check to only apply in production
+if os.getenv("ENVIRONMENT") == "production":
+    if not os.getenv("TOTP_ENCRYPTION_KEY"):
+        raise RuntimeError("TOTP_ENCRYPTION_KEY must be set in production!")
+        
+# For development, use a default key
+TOTP_ENCRYPTION_KEY = os.getenv("TOTP_ENCRYPTION_KEY", "j10sWLvYgV7vHcnJ88aaCVqIFN8W063kQKy3_WqGKK4=")
+
+fernet = Fernet(TOTP_ENCRYPTION_KEY)
+
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -64,99 +67,110 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
-    
-    to_encode.update({"exp": expire, "type": "access"})
-    encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def create_refresh_token(data: dict):
+def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
-    to_encode.update({"exp": expire, "type": "refresh"})
-    encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def verify_token(token: str, expected_type: str = "access") -> dict:
+def verify_token(token: str, credentials_exception):
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
-        if payload.get("type") != expected_type:
-            raise JWTError("Invalid token type")
-        return payload
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+        return username
     except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise credentials_exception
 
-def hash_ip_address(ip: str, salt: str = "") -> str:
-    """Hash IP address for privacy in audit logs"""
-    return hashlib.sha256(f"{ip}{salt}".encode()).hexdigest()
-
-def compute_hmac(data: str, key: str) -> str:
-    """Compute HMAC for data integrity"""
-    return hmac.new(key.encode(), data.encode(), hashlib.sha256).hexdigest()
-
-def verify_hmac(data: str, key: str, expected_hmac: str) -> bool:
-    """Verify HMAC for data integrity"""
-    computed_hmac = compute_hmac(data, key)
-    return hmac.compare_digest(computed_hmac, expected_hmac)
-
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
-):
-    """Get current authenticated user from JWT token"""
-    payload = verify_token(credentials.credentials)
-    user_id: str = payload.get("sub")
-    if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    try:
-        user_uuid = UUID(user_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid user ID format",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    user = crud.get_user_by_id(db, user_uuid)
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    username = verify_token(credentials.credentials, credentials_exception)
+    user = crud.get_user_by_username(db, username=username)
     if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
+        raise credentials_exception
     return user
 
-async def get_current_active_user(
-    current_user = Depends(get_current_user)
-):
-    """Get current active user (extend for user status checks)"""
+async def get_current_active_user(current_user = Depends(get_current_user)):
     return current_user
 
+def compute_hmac(data: str, key: str) -> str:
+    """Compute HMAC-SHA256 for integrity protection"""
+    return hmac.new(key.encode(), data.encode(), hashlib.sha256).hexdigest()
+
+def verify_hmac(data: str, key: str, provided_hmac: str) -> bool:
+    """Verify HMAC-SHA256 for integrity protection"""
+    computed_hmac = compute_hmac(data, key)
+    return hmac.compare_digest(computed_hmac, provided_hmac)
+
+def hash_ip_address(ip: str) -> str:
+    """Hash IP address for privacy while maintaining audit capability"""
+    return hashlib.sha256(ip.encode()).hexdigest()
+
 def get_client_ip(request: Request) -> str:
-    """Extract client IP address from request"""
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    """Get client IP address from request"""
+    # Check for forwarded headers (when behind proxy like Apache)
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    
     real_ip = request.headers.get("X-Real-IP")
     if real_ip:
         return real_ip
-    return request.client.host if request.client else "unknown" 
+    
+    return request.client.host
 
-#Fernet helpers for encrypting the TOTP seed that lives in the DB. 
-def encrypt_totp_seed(seed: str) -> bytes:
-    """Encrypt TOTP seed for database storage"""
-    return fernet.encrypt(seed.encode())
+def encrypt_totp_secret(secret: str) -> bytes:
+    """Encrypt TOTP secret using Fernet (AES-GCM + HMAC)"""
+    return fernet.encrypt(secret.encode())
 
-def decrypt_totp_seed(encrypted_seed: bytes) -> str:
-    """Decrypt TOTP seed from database"""
-    return fernet.decrypt(encrypted_seed).decode()
+def decrypt_totp_secret(encrypted_secret: bytes) -> str:
+    """Decrypt TOTP secret"""
+    if isinstance(encrypted_secret, str):
+        encrypted_secret = encrypted_secret.encode()
+    return fernet.decrypt(encrypted_secret).decode()
+
+# Alias for backwards compatibility
+def encrypt_totp_seed(secret: str) -> bytes:
+    """Encrypt TOTP seed using Fernet (AES-GCM + HMAC) - alias for encrypt_totp_secret"""
+    return encrypt_totp_secret(secret)
+
+def decrypt_totp_seed(encrypted_secret: bytes) -> str:
+    """Decrypt TOTP seed - alias for decrypt_totp_secret"""
+    return decrypt_totp_secret(encrypted_secret)
+
+def check_time_sync():
+    """Check if server time is synchronized with NTP servers"""
+    try:
+        client = ntplib.NTPClient()
+        response = client.request('pool.ntp.org', version=3, timeout=10)
+        server_time = time.time()
+        ntp_time = response.tx_time
+        drift = abs(server_time - ntp_time)
+        
+        return {
+            "status": "ok" if drift < 30 else "warning",
+            "time_drift_seconds": drift,
+            "server_time": server_time,
+            "ntp_time": ntp_time,
+            "synchronized": drift < 30
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "synchronized": False
+        }

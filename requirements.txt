@@ -11,3 +11,4 @@ psycopg2-binary
 pyotp>=2.9,<3.0
 redis>=5.0.0 
 
+ntplib>=0.4.0

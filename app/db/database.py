@@ -6,26 +6,28 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Database URL from environment
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/epic_db")
+from app.core.config import DATABASE_URL, ENVIRONMENT
 
-# For SQLite, we need special configuration
-if DATABASE_URL.startswith("sqlite"):
-    # SQLite specific configuration
-    engine = create_engine(
-        DATABASE_URL,
-        poolclass=StaticPool,
-        connect_args={"check_same_thread": False},
-        echo=os.getenv("SQL_DEBUG", "false").lower() == "true"
-    )
-else:
-    # PostgreSQL configuration
-    engine = create_engine(
-        DATABASE_URL,
-        pool_pre_ping=True,
-        pool_recycle=300,
-        echo=os.getenv("SQL_DEBUG", "false").lower() == "true"
-    )
+# Database configuration
+def get_database_engine():
+    if DATABASE_URL.startswith("sqlite"):
+        # SQLite specific configuration
+        return create_engine(
+            DATABASE_URL,
+            poolclass=StaticPool,
+            connect_args={"check_same_thread": False},
+            echo=os.getenv("SQL_DEBUG", "false").lower() == "true"
+        )
+    else:
+        # PostgreSQL configuration
+        return create_engine(
+            DATABASE_URL,
+            pool_pre_ping=True,
+            pool_recycle=300,
+            echo=os.getenv("SQL_DEBUG", "false").lower() == "true"
+        )
+
+engine = get_database_engine()
 
 # Session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
