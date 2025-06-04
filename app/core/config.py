@@ -2,7 +2,7 @@ import os
 import secrets
 from datetime import timedelta
 from dotenv import load_dotenv
-from typing import List
+from typing import List, Dict, Tuple
 
 # Load environment variables from .env file
 load_dotenv()
@@ -15,6 +15,18 @@ PORT: int = int(os.getenv("PORT", 3010))
 REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 SESSION_EXPIRY: timedelta = timedelta(minutes=10)
 MAX_SESSIONS_PER_USER: int = 2
+
+# Rate limiting configuration - (max_attempts, window_seconds)
+RATE_LIMITS: Dict[str, Tuple[int, int]] = {
+    "login": (5, 300),      # 5 attempts per 5 minutes
+    "register": (3, 3600),  # 3 attempts per hour
+    "totp": (3, 300),       # 3 attempts per 5 minutes
+    "api": (100, 3600),     # 100 API calls per hour (general)
+    "upload": (10, 900),    # 10 uploads per 15 minutes
+}
+
+# Default rate limit for unknown actions - (max_attempts, window_seconds)
+DEFAULT_RATE_LIMIT: Tuple[int, int] = (10, 600)  # 10 attempts per 10 minutes
 
 # CORS settings
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")

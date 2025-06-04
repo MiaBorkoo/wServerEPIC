@@ -5,7 +5,6 @@ import uvicorn
 
 from app.core.config import PROJECT_NAME, ALLOW_ORIGINS, ENVIRONMENT
 from app.routers import auth_router, files_router, user_router  # , health_router
-from app.core.rate_limiter import RateLimiter
 
 app = FastAPI(title=PROJECT_NAME, description="Server for CS4455 Epic Project")
 
@@ -32,7 +31,6 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"  # Prevents MIME sniffing attacks
     response.headers["X-Frame-Options"] = "DENY"  # Prevents clickjacking by blocking iframe embedding
     response.headers["X-XSS-Protection"] = "1; mode=block"  # Enables browser XSS filtering
-    # Don't set HSTS - Apache handles this
     response.headers["Content-Security-Policy"] = "default-src 'self'"  # Only allows resources from same domain
     return response
 

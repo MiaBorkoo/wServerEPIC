@@ -16,7 +16,8 @@ from app.schemas.files import (
 from app.db.database import get_db
 from app.db import crud
 from app.db.models import User
-from app.core.security import get_current_active_user, get_client_ip, compute_hmac
+from app.core.jwt_auth import get_current_user as get_current_active_user
+from app.core.security import get_client_ip, compute_hmac
 from app.core.config import AUDIT_LOG_HMAC_KEY
 from app.core.exceptions import handle_database_error, handle_file_operation_error, handle_generic_error, SecureHTTPException
 
