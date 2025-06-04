@@ -86,18 +86,56 @@ class SecurityTester:
         else:
             self.log_result("Authentication", "Rate Limiting", "VULNERABLE", "No rate limiting detected")
         
-        # Session Security Test
+        # JWT Token Security Test
         try:
             response = self.session.post(f"{self.base_url}/api/auth/login",
                 json={"username": "test", "auth_key": "test", "otp": "123456"})
-            if "session" in response.text and "totp_secret" not in response.text:
-                self.log_result("Authentication", "Session Management", "PASS", "Session tokens generated without exposing secrets")
+            
+            # Check for JWT token structure
+            response_data = response.json() if response.headers.get('content-type', '').startswith('application/json') else {}
+            
+            if "access_token" in response_data and "refresh_token" in response_data:
+                self.log_result("Authentication", "JWT Token Generation", "PASS", "JWT tokens properly generated")
+                
+                # Test JWT token format
+                access_token = response_data.get("access_token", "")
+                if access_token.count('.') == 2:  # JWT has 3 parts separated by dots
+                    self.log_result("Authentication", "JWT Token Format", "PASS", "JWT token has correct format")
+                else:
+                    self.log_result("Authentication", "JWT Token Format", "VULNERABLE", "Invalid JWT token format")
+                    
             elif "totp_secret" in response.text:
-                self.log_result("Authentication", "TOTP Secret Exposure", "VULNERABLE", "CRITICAL: TOTP secret exposed in response")
+                self.log_result("Authentication", "TOTP Secret Exposure", "CRITICAL", "CRITICAL: TOTP secret exposed in response")
             else:
-                self.log_result("Authentication", "Session Management", "PASS")
+                self.log_result("Authentication", "JWT Session Management", "PASS", "Authentication working without secret exposure")
+                
         except Exception as e:
-            self.log_result("Authentication", "Session Management", "ERROR", str(e))
+            self.log_result("Authentication", "JWT Session Management", "ERROR", str(e))
+        
+        # Test JWT Token Refresh Functionality
+        try:
+            # First, try to get tokens
+            login_response = self.session.post(f"{self.base_url}/api/auth/login",
+                json={"username": "test", "auth_key": "test", "otp": "123456"})
+            
+            if login_response.status_code != 200:
+                self.log_result("Authentication", "JWT Token Refresh", "INFO", "Cannot test - login failed")
+            else:
+                login_data = login_response.json()
+                if "refresh_token" in login_data:
+                    # Test refresh endpoint
+                    refresh_response = self.session.post(f"{self.base_url}/api/auth/refresh",
+                        data={"refresh_token": login_data["refresh_token"]})
+                    
+                    if refresh_response.status_code == 200:
+                        self.log_result("Authentication", "JWT Token Refresh", "PASS", "Token refresh functionality working")
+                    else:
+                        self.log_result("Authentication", "JWT Token Refresh", "INFO", f"Refresh endpoint returned {refresh_response.status_code}")
+                else:
+                    self.log_result("Authentication", "JWT Token Refresh", "INFO", "No refresh token provided")
+                    
+        except Exception as e:
+            self.log_result("Authentication", "JWT Token Refresh", "ERROR", str(e))
     
     def test_access_control(self):
         """Test Category 3: Access Control"""

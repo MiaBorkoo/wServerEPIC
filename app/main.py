@@ -5,7 +5,6 @@ import uvicorn
 
 from app.core.config import PROJECT_NAME, ALLOW_ORIGINS, ENVIRONMENT
 from app.routers import auth_router, files_router, user_router  # , health_router
-from app.core.rate_limiter import RateLimiter
 
 app = FastAPI(title=PROJECT_NAME, description="Server for CS4455 Epic Project")
 

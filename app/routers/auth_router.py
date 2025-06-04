@@ -10,16 +10,15 @@ from app.db import crud # Assuming crud.py contains all db operations
 from app.db.database import get_db  
 from app.services.totp_service import new_secret, provisioning_uri, verify_totp 
 from app.core.security import create_access_token, encrypt_totp_seed, decrypt_totp_seed  # ADDED: For proper JWT token generation
-from app.core.rate_limiter import RateLimiter
-from app.core.session_manager import SessionManager
+from app.core.jwt_session_manager import JWTSessionManager  # NEW: JWT-based session management
+from app.core.memory_rate_limiter import MemoryRateLimiter  # NEW: Memory-only rate limiting
 from app.core.exceptions import handle_database_error, handle_authentication_error, handle_validation_error, SecureHTTPException
 
 router = APIRouter()
 
-# Initialize Redis-based services
-redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-session_manager = SessionManager()
-rate_limiter = RateLimiter(redis_url)
+# Initialize memory-based services (no Redis required)
+session_manager = JWTSessionManager()
+rate_limiter = MemoryRateLimiter()
 
 @router.post("/register")
 def register_user(data: RegisterRequest, request: Request, db: Session = Depends(get_db)):
@@ -29,7 +28,7 @@ def register_user(data: RegisterRequest, request: Request, db: Session = Depends
         remaining = rate_limiter.get_remaining_attempts(client_ip, "register")
         raise SecureHTTPException(
             status_code=429,
-            detail="Too many registration attempts. Please try again later.",
+            detail=f"Too many registration attempts. Please try again in {remaining['reset_in']} seconds.",
             internal_detail=f"Rate limit exceeded for IP {client_ip}"
         )
 
@@ -74,7 +73,7 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
         remaining = rate_limiter.get_remaining_attempts(client_ip, "login")
         raise SecureHTTPException(
             status_code=429,
-            detail="Too many login attempts. Please try again later.",
+            detail=f"Too many login attempts. Please try again in {remaining['reset_in']} seconds.",
             internal_detail=f"Rate limit exceeded for {client_ip} or {data.username}"
         )
 
@@ -86,7 +85,7 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
         remaining = rate_limiter.get_remaining_attempts(data.username, "totp")
         raise SecureHTTPException(
             status_code=429,
-            detail="Too many TOTP attempts. Please try again later.",
+            detail=f"Too many TOTP attempts. Please try again in {remaining['reset_in']} seconds.",
             internal_detail=f"TOTP rate limit exceeded for {data.username}"
         )
     
@@ -94,8 +93,8 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
     if not verify_totp(db, data.username, data.otp):
         raise handle_authentication_error(Exception("Invalid or replayed TOTP"))
     
-    # Create authenticated session
-    session_token = session_manager.create_session(
+    # Create JWT session tokens
+    tokens = session_manager.create_session(
         data.username,
         {"status": "authenticated", "user_id": str(user.user_id)}
     )
@@ -106,18 +105,34 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
         raise handle_database_error(Exception("Encrypted MEK not found"))
     encrypted_mek = base64.b64encode(mek_bytes).decode()
     
-    return {"session_token": session_token, "encrypted_mek": encrypted_mek}
+    return {
+        "access_token": tokens["access_token"],
+        "refresh_token": tokens["refresh_token"],
+        "token_type": tokens["token_type"],
+        "expires_in": tokens["expires_in"],
+        "encrypted_mek": encrypted_mek
+    }
+
+@router.post("/refresh")
+async def refresh_token(refresh_token: str):
+    """Refresh access token using refresh token"""
+    new_tokens = session_manager.refresh_session(refresh_token)
+    if not new_tokens:
+        raise handle_authentication_error(Exception("Invalid or expired refresh token"))
+    
+    return new_tokens
 
 @router.post("/logout")
 async def logout(data: LogoutRequest):
-    """Logout user by invalidating session"""
+    """Logout user by revoking access token"""
+    # For JWT logout, we add the token to a revoked list
     if session_manager.delete_session(data.session_token):
-        return {"status": "success"}
+        return {"status": "success", "message": "Logged out successfully"}
     raise handle_authentication_error(Exception("Invalid or expired session"))
 
 @router.post("/change_password")
 async def change_password(data: ChangePasswordRequest, db: Session = Depends(get_db)):  # ADDED: Database session dependency
-    # Verify session is authenticated
+    # Verify JWT session is authenticated
     session = session_manager.get_session(data.session_token)
     if not session or session["username"] != data.username or session["data"].get("status") != "authenticated":
         raise handle_authentication_error(Exception("Invalid or expired session"))
@@ -129,18 +144,26 @@ async def change_password(data: ChangePasswordRequest, db: Session = Depends(get
         raise handle_authentication_error(Exception("Invalid TOTP"))
 
     try:
-        # Invalidate old sessions/tokens after password change
+        # Update password
         crud.update_user_password(db, data.username, data.new_auth_key, data.new_encrypted_mek)
         
-        # Invalidate all existing sessions for the user
-        session_manager.invalidate_user_sessions(data.username)
+        # Revoke current session (user needs to login again with new password)
+        session_manager.delete_session(data.session_token)
         
-        # Create new session
-        new_session_token = session_manager.create_session(
-            data.username,
-            {"status": "authenticated", "totp_verified": True}
-        )
-        
-        return {"status": "success", "session": new_session_token}
+        return {"status": "success", "message": "Password changed successfully. Please login again."}
     except Exception as e:
-        raise handle_database_error(e) 
+        raise handle_database_error(e)
+
+@router.get("/rate-limit-status")
+async def get_rate_limit_status(request: Request, username: str = None):
+    """Get rate limiting status for debugging"""
+    client_ip = request.client.host
+    
+    status = {
+        "ip_limits": rate_limiter.get_user_status(client_ip),
+    }
+    
+    if username:
+        status["user_limits"] = rate_limiter.get_user_status(username)
+    
+    return status 

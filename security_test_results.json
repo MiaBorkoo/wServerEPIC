@@ -1,0 +1,209 @@
+{
+  "tests": [
+    {
+      "category": "Input Validation",
+      "test": "SQL Injection (' OR '1'='1...)",
+      "status": "PASS",
+      "details": "",
+      "timestamp": 1748995113.026443
+    },
+    {
+      "category": "Input Validation",
+      "test": "SQL Injection (admin'; DROP TABLE u...)",
+      "status": "PASS",
+      "details": "",
+      "timestamp": 1748995113.027776
+    },
+    {
+      "category": "Input Validation",
+      "test": "SQL Injection (' UNION SELECT * FRO...)",
+      "status": "PASS",
+      "details": "",
+      "timestamp": 1748995113.028736
+    },
+    {
+      "category": "Input Validation",
+      "test": "XSS Protection",
+      "status": "PASS",
+      "details": "",
+      "timestamp": 1748995113.046261
+    },
+    {
+      "category": "Input Validation",
+      "test": "XSS Protection",
+      "status": "PASS",
+      "details": "",
+      "timestamp": 1748995113.048108
+    },
+    {
+      "category": "Authentication",
+      "test": "Rate Limiting",
+      "status": "PASS",
+      "details": "Rate limiting active after multiple attempts",
+      "timestamp": 1748995113.617949
+    },
+    {
+      "category": "Authentication",
+      "test": "Session Management",
+      "status": "PASS",
+      "details": "",
+      "timestamp": 1748995113.620498
+    },
+    {
+      "category": "Access Control",
+      "test": "Unauthorized Access (/api/files/)",
+      "status": "PASS",
+      "details": "",
+      "timestamp": 1748995113.622587
+    },
+    {
+      "category": "Access Control",
+      "test": "Unauthorized Access (/api/user/profile)",
+      "status": "INFO",
+      "details": "Status: 404",
+      "timestamp": 1748995113.624175
+    },
+    {
+      "category": "Access Control",
+      "test": "IDOR Test (00000000...)",
+      "status": "PASS",
+      "details": "",
+      "timestamp": 1748995113.625665
+    },
+    {
+      "category": "Access Control",
+      "test": "IDOR Test (99999999...)",
+      "status": "PASS",
+      "details": "",
+      "timestamp": 1748995113.6269922
+    },
+    {
+      "category": "Injection",
+      "test": "Command Injection (; ls -la)",
+      "status": "PASS",
+      "details": "",
+      "timestamp": 1748995113.629107
+    },
+    {
+      "category": "Injection",
+      "test": "Command Injection (| cat /etc/passwd)",
+      "status": "PASS",
+      "details": "",
+      "timestamp": 1748995113.630645
+    },
+    {
+      "category": "Injection",
+      "test": "Command Injection (&& whoami)",
+      "status": "PASS",
+      "details": "",
+      "timestamp": 1748995113.6324182
+    },
+    {
+      "category": "Injection",
+      "test": "Command Injection ($(id))",
+      "status": "PASS",
+      "details": "",
+      "timestamp": 1748995113.6340961
+    },
+    {
+      "category": "Injection",
+      "test": "Path Traversal (../../../etc/pa...)",
+      "status": "PASS",
+      "details": "",
+      "timestamp": 1748995113.635324
+    },
+    {
+      "category": "Injection",
+      "test": "Path Traversal (..%2f..%2f..%2f...)",
+      "status": "PASS",
+      "details": "",
+      "timestamp": 1748995113.636734
+    },
+    {
+      "category": "Injection",
+      "test": "Path Traversal (....//....//......)",
+      "status": "PASS",
+      "details": "",
+      "timestamp": 1748995113.637931
+    },
+    {
+      "category": "Security Config",
+      "test": "Security Headers",
+      "status": "PASS",
+      "details": "All required security headers present",
+      "timestamp": 1748995113.639116
+    },
+    {
+      "category": "Security Config",
+      "test": "HSTS Header",
+      "status": "PASS",
+      "details": "",
+      "timestamp": 1748995113.639124
+    },
+    {
+      "category": "Security Config",
+      "test": "Server Version Disclosure",
+      "status": "LOW",
+      "details": "Server version exposed in headers",
+      "timestamp": 1748995113.640142
+    },
+    {
+      "category": "Data Exposure",
+      "test": "Sensitive Data in Response",
+      "status": "PASS",
+      "details": "",
+      "timestamp": 1748995113.641258
+    },
+    {
+      "category": "Data Exposure",
+      "test": "TOTP Secret Exposure",
+      "status": "PASS",
+      "details": "TOTP secrets properly protected",
+      "timestamp": 1748995113.6429482
+    },
+    {
+      "category": "File Upload",
+      "test": "Malicious Upload (PHP web shell)",
+      "status": "PASS",
+      "details": "shell.php properly rejected",
+      "timestamp": 1748995113.644882
+    },
+    {
+      "category": "File Upload",
+      "test": "Malicious Upload (JSP script)",
+      "status": "PASS",
+      "details": "script.jsp properly rejected",
+      "timestamp": 1748995113.646336
+    },
+    {
+      "category": "File Upload",
+      "test": "Malicious Upload (Windows executable)",
+      "status": "PASS",
+      "details": "malware.exe properly rejected",
+      "timestamp": 1748995113.6476538
+    },
+    {
+      "category": "File Upload",
+      "test": "Malicious Upload (Path traversal filename)",
+      "status": "PASS",
+      "details": "../../../passwd properly rejected",
+      "timestamp": 1748995113.648996
+    },
+    {
+      "category": "Session Security",
+      "test": "Session Fixation",
+      "status": "PASS",
+      "details": "",
+      "timestamp": 1748995113.651507
+    }
+  ],
+  "summary": {
+    "total_tests": 28,
+    "passed": 26,
+    "vulnerable": 0,
+    "critical": 0,
+    "security_score": 92.85714285714286,
+    "risk_level": "LOW",
+    "timestamp": 1748995113.651734
+  }
+}
