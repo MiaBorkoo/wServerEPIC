@@ -102,9 +102,9 @@ def update_user_password(db: Session, username: str, new_auth_hash: str, new_enc
         new_encrypted_mek = base64.b64decode(new_encrypted_mek)
     
     result = db.query(User).filter(User.username == username).update({
-        "auth_hash": new_auth_hash,  # CHANGED: Using auth_hash instead of auth_key
+        "auth_hash": new_auth_hash,  
         "encrypted_mek": new_encrypted_mek
-    })
+    }) 
     db.commit()
     return result > 0
 

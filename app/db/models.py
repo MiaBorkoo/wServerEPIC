@@ -54,7 +54,7 @@ class User(Base):
     auth_salt = Column(String(64), nullable=False)  # 32-byte salt, hex encoded
     auth_salt_2 = Column(String(64), nullable=False)  # Second 32-byte salt, hex encoded
     enc_salt = Column(String(64), nullable=False)   # 32-byte salt, hex encoded
-    auth_hash = Column(String(128), nullable=False)  # Argon2id hash of server key
+    auth_hash = Column(String(128), nullable=False)  # Argon2id hash of authserver key
     encrypted_mek = Column(LargeBinary, nullable=False)  # Client-encrypted MEK
     totp_secret = Column(String(64), nullable=False)  # TOTP secret
     totp_last_counter = Column(BigInteger)  # new!
