@@ -25,10 +25,9 @@ def register_user(data: RegisterRequest, request: Request, db: Session = Depends
     # Rate limit by IP address
     client_ip = request.client.host
     if rate_limiter.is_rate_limited(client_ip, "register"):
-        remaining = rate_limiter.get_remaining_attempts(client_ip, "register")
         raise SecureHTTPException(
             status_code=429,
-            detail=f"Too many registration attempts. Please try again in {remaining['reset_in']} seconds.",
+            detail="Too many registration attempts. Please try again later.",
             internal_detail=f"Rate limit exceeded for IP {client_ip}"
         )
 
@@ -70,10 +69,9 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
     # Rate limit by both IP and username
     client_ip = request.client.host
     if rate_limiter.is_rate_limited(client_ip, "login") or rate_limiter.is_rate_limited(data.username, "login"):
-        remaining = rate_limiter.get_remaining_attempts(client_ip, "login")
         raise SecureHTTPException(
             status_code=429,
-            detail=f"Too many login attempts. Please try again in {remaining['reset_in']} seconds.",
+            detail="Too many login attempts. Please try again later.",
             internal_detail=f"Rate limit exceeded for {client_ip} or {data.username}"
         )
 
@@ -82,10 +80,9 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
         raise handle_authentication_error(Exception("Invalid credentials"))
     
     if rate_limiter.is_rate_limited(data.username, "totp"):
-        remaining = rate_limiter.get_remaining_attempts(data.username, "totp")
         raise SecureHTTPException(
             status_code=429,
-            detail=f"Too many TOTP attempts. Please try again in {remaining['reset_in']} seconds.",
+            detail="Too many TOTP attempts. Please try again later.",
             internal_detail=f"TOTP rate limit exceeded for {data.username}"
         )
     
@@ -144,7 +141,12 @@ async def change_password(data: ChangePasswordRequest, db: Session = Depends(get
         raise handle_authentication_error(Exception("Invalid TOTP"))
 
     try:
-        # Update password
+        # TODO: for @ruan
+        # Change salts with password change for additional security
+        # This requires schema changes to add new_auth_salt and new_enc_salt to ChangePasswordRequest
+        # and updating the database schema accordingly??? i think??
+        
+        # Update password and encrypted MEK
         crud.update_user_password(db, data.username, data.new_auth_key, data.new_encrypted_mek)
         
         # Revoke current session (user needs to login again with new password)
@@ -154,16 +156,3 @@ async def change_password(data: ChangePasswordRequest, db: Session = Depends(get
     except Exception as e:
         raise handle_database_error(e)
 
-@router.get("/rate-limit-status")
-async def get_rate_limit_status(request: Request, username: str = None):
-    """Get rate limiting status for debugging"""
-    client_ip = request.client.host
-    
-    status = {
-        "ip_limits": rate_limiter.get_user_status(client_ip),
-    }
-    
-    if username:
-        status["user_limits"] = rate_limiter.get_user_status(username)
-    
-    return status 

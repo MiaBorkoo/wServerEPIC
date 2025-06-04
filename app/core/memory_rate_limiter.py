@@ -3,6 +3,7 @@ import time
 from typing import Optional, Dict, Any, Tuple
 import threading
 from collections import defaultdict, deque
+from app.core.config import RATE_LIMITS, DEFAULT_RATE_LIMIT
 
 class MemoryRateLimiter:
     """In-memory rate limiter - no Redis required"""
@@ -11,18 +12,12 @@ class MemoryRateLimiter:
         self.storage = defaultdict(deque)
         self.lock = threading.Lock()
         
-        # Rate limiting rules
-        self.limits = {
-            "login": (5, 300),      # 5 attempts per 5 minutes
-            "register": (3, 3600),  # 3 attempts per hour
-            "totp": (3, 300),       # 3 attempts per 5 minutes
-            "api": (100, 3600),     # 100 API calls per hour (general)
-            "upload": (10, 900),    # 10 uploads per 15 minutes
-        }
+        # Rate limiting rules from config
+        self.limits = RATE_LIMITS
 
     def is_rate_limited(self, identifier: str, action: str) -> bool:
         """Check if the identifier is rate limited for the given action"""
-        max_attempts, window = self.limits.get(action, (10, 600))
+        max_attempts, window = self.limits.get(action, DEFAULT_RATE_LIMIT)
         
         with self.lock:
             key = f"{action}:{identifier}"
@@ -42,7 +37,7 @@ class MemoryRateLimiter:
 
     def get_remaining_attempts(self, identifier: str, action: str) -> Dict[str, Any]:
         """Get remaining attempts for identifier"""
-        max_attempts, window = self.limits.get(action, (10, 600))
+        max_attempts, window = self.limits.get(action, DEFAULT_RATE_LIMIT)
         
         with self.lock:
             key = f"{action}:{identifier}"
@@ -100,7 +95,7 @@ class MemoryRateLimiter:
             for key, timestamps in self.storage.items():
                 # Get the window for this action
                 action = key.split(':')[0]
-                _, window = self.limits.get(action, (10, 600))
+                _, window = self.limits.get(action, DEFAULT_RATE_LIMIT)
                 
                 # Remove old timestamps
                 while timestamps and now - timestamps[0] > window:

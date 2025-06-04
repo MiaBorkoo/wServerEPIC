@@ -4,6 +4,9 @@ from jose import jwt, JWTError
 from fastapi import HTTPException, status
 import secrets
 import os
+import threading
+import time
+import logging
 
 # Environment variables
 SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_urlsafe(32))
@@ -20,8 +23,40 @@ class JWTSessionManager:
         self.access_token_expiry = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         self.refresh_token_expiry = timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
         
-        # For tracking active sessions (optional - for logout functionality)
-        self.revoked_tokens = set()  # In production, consider using a distributed cache
+        # For tracking revoked tokens with TTL to prevent memory growth
+        self.revoked_tokens = {}  # {token_hash: expiry_timestamp}
+        self.lock = threading.Lock()
+        
+        # Cleanup old revoked tokens every hour
+        self._last_cleanup = time.time()
+        self._cleanup_interval = 3600  # 1 hour
+    
+    def _cleanup_revoked_tokens(self):
+        """Clean up expired revoked tokens to prevent memory growth"""
+        current_time = time.time()
+        
+        # Only cleanup if enough time has passed
+        if current_time - self._last_cleanup < self._cleanup_interval:
+            return
+            
+        with self.lock:
+            expired_tokens = [
+                token for token, expiry in self.revoked_tokens.items() 
+                if current_time > expiry
+            ]
+            
+            for token in expired_tokens:
+                del self.revoked_tokens[token]
+                
+            self._last_cleanup = current_time
+            
+            if expired_tokens:
+                logging.info(f"Cleaned up {len(expired_tokens)} expired revoked tokens")
+    
+    def _get_token_hash(self, token: str) -> str:
+        """Get a hash of the token for storage (saves memory)"""
+        import hashlib
+        return hashlib.sha256(token.encode()).hexdigest()
     
     def create_session(self, username: str, data: Dict[str, Any] = None) -> Dict[str, str]:
         """Create JWT access and refresh tokens"""
@@ -59,9 +94,14 @@ class JWTSessionManager:
     def get_session(self, token: str) -> Optional[Dict[str, Any]]:
         """Validate and decode JWT token"""
         try:
+            # Clean up expired revoked tokens periodically
+            self._cleanup_revoked_tokens()
+            
             # Check if token is revoked
-            if token in self.revoked_tokens:
-                return None
+            token_hash = self._get_token_hash(token)
+            with self.lock:
+                if token_hash in self.revoked_tokens:
+                    return None
             
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
             
@@ -90,8 +130,10 @@ class JWTSessionManager:
     def refresh_session(self, refresh_token: str) -> Optional[Dict[str, str]]:
         """Create new access token using refresh token"""
         try:
-            if refresh_token in self.revoked_tokens:
-                return None
+            token_hash = self._get_token_hash(refresh_token)
+            with self.lock:
+                if token_hash in self.revoked_tokens:
+                    return None
             
             payload = jwt.decode(refresh_token, self.secret_key, algorithms=[self.algorithm])
             
@@ -126,23 +168,35 @@ class JWTSessionManager:
     
     def delete_session(self, token: str) -> bool:
         """Revoke a token (logout)"""
-        session = self.get_session(token)
-        if session:
-            self.revoked_tokens.add(token)
+        try:
+            # Decode token to get expiry time
+            payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
+            expiry_timestamp = payload["exp"]
+            
+            token_hash = self._get_token_hash(token)
+            with self.lock:
+                self.revoked_tokens[token_hash] = expiry_timestamp
+            
             return True
-        return False
+        except JWTError:
+            return False
     
-    def invalidate_user_sessions(self, username: str) -> int:
-        """Invalidate all sessions for a user - limited functionality with JWT"""
-        # Note: With JWT, we can't easily invalidate all user sessions
-        # This would require either:
-        # 1. A blacklist of all tokens (memory intensive)
-        # 2. Changing the user's secret key (database change)
-        # 3. Adding a "issued_after" timestamp to user record
+    # def invalidate_user_sessions(self, username: str) -> int:
+    #     """Invalidate all sessions for a user - limited functionality with JWT
         
-        # For now, we'll just increment a counter that we can check during validation
-        # This is a simplified implementation
-        return 0  # Cannot determine exact count with stateless JWT
+    #     Note: With JWT, we can't easily invalidate all user sessions. This would require either:
+    #     1. A blacklist of all tokens (memory intensive)
+    #     2. Changing the user's secret key (database change)
+    #     3. Adding a "issued_after" timestamp to user record
+        
+    #     This method is not fully implemented. Consider using an alternative strategy for session management
+    #     if you need to invalidate all user sessions.
+    #     """
+    #     logging.warning(f"invalidate_user_sessions called for {username} but is not fully implemented with JWT")
+    #     raise NotImplementedError(
+    #         "invalidate_user_sessions is not supported with the current JWT implementation. "
+    #         "Consider implementing a user-specific token versioning system or switching to stateful sessions."
+    #     )
     
     def validate_and_extract_user(self, token: str) -> Optional[str]:
         """Extract username from valid token"""

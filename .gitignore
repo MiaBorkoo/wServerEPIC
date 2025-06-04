@@ -12,3 +12,4 @@ cert.pem
 .env
 files/
 .DS_Store
+*.json
