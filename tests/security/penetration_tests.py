@@ -55,7 +55,7 @@ class SecurityTester:
             try:
                 response = self.session.post(f"{self.base_url}/api/auth/register", 
                     json={"username": payload, "auth_salt": "test", "enc_salt": "test", 
-                          "auth_key": "test", "encrypted_mek": "test", "public_key": {}, "user_data_hmac": "test"})
+                          "auth_hash": "test", "encrypted_mek": "test", "public_key": {}, "user_data_hmac": "test"})
                 if payload in response.text:
                     self.log_result("Input Validation", "XSS Protection", "VULNERABLE", "XSS payload reflected in response")
                 else:
@@ -73,7 +73,7 @@ class SecurityTester:
         for i in range(8):
             try:
                 response = self.session.post(f"{self.base_url}/api/auth/login",
-                    json={"username": "test_user", "auth_key": "wrong_key", "otp": "000000"})
+                    json={"username": "test_user", "auth_hash": "wrong_key", "otp": "000000"})
                 if response.status_code == 429:
                     rate_limited = True
                     break
@@ -89,7 +89,7 @@ class SecurityTester:
         # JWT Token Security Test
         try:
             response = self.session.post(f"{self.base_url}/api/auth/login",
-                json={"username": "test", "auth_key": "test", "otp": "123456"})
+                json={"username": "test", "auth_hash": "test", "otp": "123456"})
             
             # Check for JWT token structure
             response_data = response.json() if response.headers.get('content-type', '').startswith('application/json') else {}
@@ -116,7 +116,7 @@ class SecurityTester:
         try:
             # First, try to get tokens
             login_response = self.session.post(f"{self.base_url}/api/auth/login",
-                json={"username": "test", "auth_key": "test", "otp": "123456"})
+                json={"username": "test", "auth_hash": "test", "otp": "123456"})
             
             if login_response.status_code != 200:
                 self.log_result("Authentication", "JWT Token Refresh", "INFO", "Cannot test - login failed")
@@ -255,7 +255,7 @@ class SecurityTester:
         try:
             response = self.session.post(f"{self.base_url}/api/auth/register",
                 json={"username": f"test_{int(time.time())}", "auth_salt": "test", "enc_salt": "test",
-                      "auth_key": "test", "encrypted_mek": "test", "public_key": {}, "user_data_hmac": "test"})
+                      "auth_hash": "test", "encrypted_mek": "test", "public_key": {}, "user_data_hmac": "test"})
             if "totp_secret" in response.text:
                 self.log_result("Data Exposure", "TOTP Secret Exposure", "CRITICAL", 
                               "TOTP secret exposed in registration response!")
@@ -311,7 +311,7 @@ class SecurityTester:
             
             # Attempt login
             response2 = self.session.post(f"{self.base_url}/api/auth/login",
-                json={"username": "test", "auth_key": "test", "otp": "123456"})
+                json={"username": "test", "auth_hash": "test", "otp": "123456"})
             
             # Check if session changed
             final_cookies = self.session.cookies.copy()
