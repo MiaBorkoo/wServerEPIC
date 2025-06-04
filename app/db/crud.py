@@ -17,8 +17,9 @@ def create_user(
     db: Session, 
     username: str, 
     auth_salt: str,
+    auth_salt_2: str,
     enc_salt: str,
-    auth_key: str,
+    auth_hash: str,
     encrypted_mek: bytes,
     totp_secret: str,
     public_key: str,
@@ -37,11 +38,12 @@ def create_user(
     
     user = User(
         username=username,
-        auth_salt=auth_salt,          # ADDED: Authentication salt
-        enc_salt=enc_salt,            # ADDED: Encryption salt  
-        auth_key=auth_key,            # ADDED: Server key hash (Argon2id output)
-        encrypted_mek=encrypted_mek,  # ADDED: Client-encrypted MEK
-        totp_secret=totp_secret,      # ADDED: TOTP secret
+        auth_salt=auth_salt,          # Authentication salt
+        auth_salt_2=auth_salt_2,      # Second authentication salt
+        enc_salt=enc_salt,            # Encryption salt  
+        auth_hash=auth_hash,          # Authentication hash (Argon2id output)
+        encrypted_mek=encrypted_mek,  # Client-encrypted MEK
+        totp_secret=totp_secret,      # TOTP secret
         public_key=public_key,
         user_data_hmac=user_data_hmac,
         created_at=func.now()
@@ -74,15 +76,16 @@ def get_user_salts(db: Session, username: str) -> Optional[Dict[str, str]]:
         return None
     return {
         "auth_salt": user.auth_salt,
+        "auth_salt_2": user.auth_salt_2, 
         "enc_salt": user.enc_salt
     }
 
-def verify_user_auth(db: Session, username: str, auth_key: str) -> bool:
-    """Verify user's authentication key - ADDED for login flow"""
+def verify_user_auth(db: Session, username: str, auth_hash: str) -> bool:
+    """Verify user's authentication hash - ADDED for login flow"""
     user = db.query(User).filter(User.username == username).first()
     if not user:
         return False
-    return user.auth_key == auth_key
+    return user.auth_hash == auth_hash
 
 def get_encrypted_mek(db: Session, username: str) -> Optional[bytes]:
     """Get user's encrypted MEK - ADDED for TOTP flow"""
@@ -91,7 +94,7 @@ def get_encrypted_mek(db: Session, username: str) -> Optional[bytes]:
         return None
     return user.encrypted_mek
 
-def update_user_password(db: Session, username: str, new_auth_key: str, new_encrypted_mek: bytes) -> bool:
+def update_user_password(db: Session, username: str, new_auth_hash: str, new_encrypted_mek: bytes) -> bool:
     """Update user's password and encrypted MEK - ADDED for password change"""
     # Convert encrypted_mek to bytes if it's a string (base64 encoded)
     if isinstance(new_encrypted_mek, str):
@@ -99,7 +102,7 @@ def update_user_password(db: Session, username: str, new_auth_key: str, new_encr
         new_encrypted_mek = base64.b64decode(new_encrypted_mek)
     
     result = db.query(User).filter(User.username == username).update({
-        "auth_key": new_auth_key,
+        "auth_hash": new_auth_hash,  # CHANGED: Using auth_hash instead of auth_key
         "encrypted_mek": new_encrypted_mek
     })
     db.commit()
