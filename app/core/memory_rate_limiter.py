@@ -6,7 +6,7 @@ from collections import defaultdict, deque
 from app.core.config import RATE_LIMITS, DEFAULT_RATE_LIMIT
 
 class MemoryRateLimiter:
-    """In-memory rate limiter - no Redis required"""
+    """In-memory rate limiter """
     
     def __init__(self):
         self.storage = defaultdict(deque)

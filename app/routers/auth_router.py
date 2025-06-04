@@ -16,7 +16,6 @@ from app.core.exceptions import handle_database_error, handle_authentication_err
 
 router = APIRouter()
 
-# Initialize memory-based services (no Redis required)
 session_manager = JWTSessionManager()
 rate_limiter = MemoryRateLimiter()
 

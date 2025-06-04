@@ -15,7 +15,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30")
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
 class JWTSessionManager:
-    """JWT-based session manager - no Redis required"""
+    """JWT-based session manager"""
     
     def __init__(self):
         self.secret_key = SECRET_KEY
