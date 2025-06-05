@@ -252,5 +252,5 @@ For support and queries:
 ---
 
 <div align="center">
-Made with ❤️ by the wServerEPIC Team
+Made with ❤️ by the ChrisPP Team
 </div>
