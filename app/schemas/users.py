@@ -4,6 +4,7 @@ from typing import Dict, Any
 class RegisterRequest(BaseModel):
     username: str
     auth_salt: str
+    auth_salt_2: str
     enc_salt: str
     auth_key: str
     encrypted_mek: str
@@ -29,4 +30,5 @@ class LogoutRequest(BaseModel):
 
 class UserSaltsResponse(BaseModel):
     auth_salt: str
+    auth_salt_2: str
     enc_salt: str 

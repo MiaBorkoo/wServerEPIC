@@ -169,8 +169,8 @@ class Share(Base):
     
     # Relationships
     file = relationship("File", back_populates="shares")
-    owner = relationship("User", back_populates="granted_shares")
-    recipient = relationship("User", back_populates="received_shares")
+    owner = relationship("User", back_populates="granted_shares", foreign_keys=[owner_id])
+    recipient = relationship("User", back_populates="received_shares", foreign_keys=[recipient_id])
     
     # Constraints
     __table_args__ = (

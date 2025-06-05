@@ -107,6 +107,7 @@
             
             // Generate fake crypto data for testing
             const authSalt = generateRandomHex(32);
+            const authSalt2 = generateRandomHex(32);
             const encSalt = generateRandomHex(32);
             const username = 'testuser_' + Date.now();
             const password = 'TestPassword123!';
@@ -115,6 +116,7 @@
             const userData = {
                 username: username,
                 auth_salt: authSalt,
+                auth_salt_2: authSalt2,
                 enc_salt: encSalt,
                 auth_key: 'fake_auth_key_' + Date.now(),
                 encrypted_mek: 'fake_encrypted_mek_' + Date.now(),
@@ -143,12 +145,14 @@
             // Register first
             log('Step 1: Register user');
             const authSalt = generateRandomHex(32);
+            const authSalt2 = generateRandomHex(32);
             const encSalt = generateRandomHex(32);
             
             // Prepare user data for HMAC computation
             const userData = {
                 username: username,
                 auth_salt: authSalt,
+                auth_salt_2: authSalt2,
                 enc_salt: encSalt,
                 auth_key: 'fake_auth_key_' + Date.now(),
                 encrypted_mek: 'fake_encrypted_mek_' + Date.now(),

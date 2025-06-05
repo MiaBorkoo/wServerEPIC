@@ -175,6 +175,7 @@ async function handleRegister(e) {
     try {
         // Generate salts (32-byte random values)
         const authSalt = generateRandomBytes(32);
+        const authSalt2 = generateRandomBytes(32);
         const encSalt = generateRandomBytes(32);
         
         // Generate fake derived keys (in real implementation, would use Argon2id)
@@ -192,6 +193,7 @@ async function handleRegister(e) {
         const userData = {
             username,
             auth_salt: authSalt,
+            auth_salt_2: authSalt2,
             enc_salt: encSalt,
             auth_key: authKey,
             encrypted_mek: encryptedMEK,
