@@ -34,14 +34,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Note: Disabled TrustedHostMiddleware since Apache handles SSL termination and host validation
-# if ENVIRONMENT in ["production", "staging"]:
-#     app.add_middleware(
-#         TrustedHostMiddleware,  # Blocks requests with malicious Host headers
-#         allowed_hosts=["chrisplusplus.gobbler.info", "*.gobbler.info", "localhost", "127.0.0.1"]
-#     )
-
-# Security headers middleware - Adds protective HTTP headers to every response to prevent common web attacks
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -58,14 +50,10 @@ app.include_router(files_router.router, prefix="/api/files", tags=["Files"])
 app.include_router(user_router.router, prefix="/api/user", tags=["User"])
 # app.include_router(health_router.router, prefix="/api/health", tags=["Health"])
 
-
 @app.get("/")
 async def root():
     return {"message": f"{PROJECT_NAME} is running."}
 
-# TODO: Move the uvicorn run command to a separate run.py or manage.py at the project root
-# This is for when you run the app directly using `python app/main.py`
-# For production, you'd typically use `uvicorn app.main:app --reload`
 if __name__ == "__main__":
     uvicorn_config = {
         "app": "app.main:app",
@@ -74,5 +62,4 @@ if __name__ == "__main__":
         "reload": ENVIRONMENT == "development",
         "forwarded_allow_ips": "*"  # Trust proxy headers from any IP (since Apache is handling this)
     }
-    
     uvicorn.run(**uvicorn_config) 
