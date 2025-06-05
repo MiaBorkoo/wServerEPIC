@@ -11,11 +11,6 @@ load_dotenv()
 PROJECT_NAME: str = "EPIC Server"
 PORT: int = int(os.getenv("PORT", 3010))
 
-# Session settings
-REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-SESSION_EXPIRY: timedelta = timedelta(minutes=10)
-MAX_SESSIONS_PER_USER: int = 2
-
 # Rate limiting configuration - (max_attempts, window_seconds)
 RATE_LIMITS: Dict[str, Tuple[int, int]] = {
     "login": (5, 300),      # 5 attempts per 5 minutes
@@ -63,6 +58,3 @@ AUDIT_LOG_HMAC_KEY = os.getenv("AUDIT_LOG_HMAC_KEY", secrets.token_urlsafe(32))
 
 # DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./epic.db")
 # SAFE_DATABASE_URL = sanitize_db_url(DATABASE_URL)  # For logging only
-
-# Redis URL
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0") 
