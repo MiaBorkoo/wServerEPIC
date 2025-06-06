@@ -112,6 +112,7 @@ async def upload_file(
             detail={"status": "error", "message": f"Upload failed: {str(e)}"}
         )
 
+#shall be fixed
 @router.get("/{file_id}/download")
 async def download_file(
     request: Request,
