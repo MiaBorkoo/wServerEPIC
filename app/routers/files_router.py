@@ -7,6 +7,7 @@ import time
 import os
 import io
 import base64
+import re
 
 from app.schemas.files import (
     FileUploadRequest, FileShareRequest, ShareRevokeRequest, FileDeleteRequest,
@@ -62,12 +63,16 @@ async def upload_file(
         filename_encrypted_bytes = base64.b64decode(filename_encrypted)
         file_size_encrypted_bytes = base64.b64decode(file_size_encrypted)
         
+        # CRITICAL: Store the client's original encrypted filename as-is
+        # The client sends filename_encrypted as Base64, we decode it to bytes for DB storage
+        # When returning via API, Pydantic will re-encode it to Base64 maintaining the original format
+        
         # Create file record in database (per requirements REQ-FILE-002)
         file_record = crud.create_file(
             db=db,
             owner_id=current_user.user_id,
-            filename_encrypted=filename_encrypted_bytes,
-            file_size_encrypted=file_size_encrypted_bytes,
+            filename_encrypted=filename_encrypted_bytes,  # Store client's encrypted filename
+            file_size_encrypted=file_size_encrypted_bytes,  # Store client's encrypted file size
             file_data_hmac=file_data_hmac,
             server_storage_path=file_path
         )
@@ -149,6 +154,19 @@ async def download_file(
         # Extract file path while session is active
         file_path = file_record.server_storage_path
         
+        # Decode filename for Content-Disposition header
+        try:
+            # The filename_encrypted field contains the original filename as bytes
+            # This could be either plaintext or actually encrypted depending on client implementation
+            original_filename = file_record.filename_encrypted.decode('utf-8')
+            # Sanitize filename for header safety
+            safe_filename = re.sub(r'[^\w\s\-_\.]', '', original_filename)
+            if not safe_filename:
+                safe_filename = f"file_{str(file_id)[:8]}"
+        except (UnicodeDecodeError, AttributeError):
+            # Fallback to file ID if decoding fails
+            safe_filename = f"file_{str(file_id)[:8]}"
+        
         # Stream file content
         def file_generator():
             with open(file_path, "rb") as f:
@@ -158,7 +176,7 @@ async def download_file(
         return StreamingResponse(
             file_generator(),
             media_type="application/octet-stream",
-            headers={"Content-Disposition": f"attachment; filename={file_id}"}
+            headers={"Content-Disposition": f"attachment; filename=\"{safe_filename}\""}
         )
         
     except HTTPException:

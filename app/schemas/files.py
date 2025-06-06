@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
+import base64
 
 # Request schemas
 class FileUploadRequest(BaseModel):
@@ -33,6 +34,20 @@ class FileResponse(BaseModel):
     file_data_hmac: str
     server_storage_path: str
     
+    @field_serializer('filename_encrypted')
+    def serialize_filename_encrypted(self, value: bytes) -> str:
+        """Serialize filename_encrypted as Base64 string to preserve client format"""
+        if isinstance(value, bytes):
+            return base64.b64encode(value).decode('utf-8')
+        return value
+    
+    @field_serializer('file_size_encrypted')
+    def serialize_file_size_encrypted(self, value: bytes) -> str:
+        """Serialize file_size_encrypted as Base64 string to preserve client format"""
+        if isinstance(value, bytes):
+            return base64.b64encode(value).decode('utf-8')
+        return value
+    
     class Config:
         from_attributes = True
 
@@ -43,6 +58,20 @@ class SharedFileResponse(BaseModel):
     upload_timestamp: int
     file_data_hmac: str
     share_id: UUID
+    
+    @field_serializer('filename_encrypted')
+    def serialize_filename_encrypted(self, value: bytes) -> str:
+        """Serialize filename_encrypted as Base64 string to preserve client format"""
+        if isinstance(value, bytes):
+            return base64.b64encode(value).decode('utf-8')
+        return value
+    
+    @field_serializer('file_size_encrypted')
+    def serialize_file_size_encrypted(self, value: bytes) -> str:
+        """Serialize file_size_encrypted as Base64 string to preserve client format"""
+        if isinstance(value, bytes):
+            return base64.b64encode(value).decode('utf-8')
+        return value
     
     class Config:
         from_attributes = True
